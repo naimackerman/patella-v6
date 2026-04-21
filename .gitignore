@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+
+.DS_Store
+__pycache__/
+.pytest_cache/
+.venv/
+
+outputs/
+checkpoints/
+/features/
+annotations/jsn_masks/
