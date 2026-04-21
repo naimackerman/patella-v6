@@ -34,7 +34,7 @@ model:
   in_channels: 1
   num_classes_per_head: 4
   num_heads: 4
-  roi_size: 224
+  roi_size: 140
   # Dropout in backbone (from Patella - CRITICAL!)
   dropout: 0.3
   # MLP head dropouts

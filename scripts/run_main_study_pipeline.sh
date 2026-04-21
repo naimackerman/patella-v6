@@ -500,6 +500,7 @@ else
     --scan-all-images \
     --clahe-clip 3.0 \
     --clahe-tile 8 \
+    --osteophyte-roi-size 140 \
     --reviewed-jsn-mask-dir "${ROOT_DIR}/annotations/jsn_masks" \
     --predicted-jsn-mask-dir "${ROOT_DIR}/features/jsn/masks" \
     --landmark-backend heuristic \

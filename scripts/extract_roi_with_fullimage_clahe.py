@@ -27,6 +27,7 @@ from src.data.image_validation import read_grayscale_image
 
 
 ROI_SITES = ["medial_femur", "lateral_femur", "medial_tibia", "lateral_tibia"]
+DEFAULT_OSTEOPHYTE_ROI_SIZE = 140
 
 
 def apply_clahe_full_image(image: np.ndarray, clip_limit: float = 3.0, tile_grid_size: int = 8) -> np.ndarray:
@@ -38,7 +39,12 @@ def apply_clahe_full_image(image: np.ndarray, clip_limit: float = 3.0, tile_grid
     return clahe.apply(image)
 
 
-def extract_geometric_roi(image: np.ndarray, is_left: bool, site: str) -> np.ndarray:
+def extract_geometric_roi(
+    image: np.ndarray,
+    is_left: bool,
+    site: str,
+    roi_size: int = DEFAULT_OSTEOPHYTE_ROI_SIZE,
+) -> np.ndarray:
     """Geometric osteophyte ROI fallback used when landmark extraction fails."""
     h, w = image.shape
 
@@ -63,19 +69,24 @@ def extract_geometric_roi(image: np.ndarray, is_left: bool, site: str) -> np.nda
 
     roi = image[y1:y2, x1:x2]
     if roi.size == 0:
-        return np.zeros((224, 224), dtype=np.uint8)
-    return cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR)
+        return np.zeros((roi_size, roi_size), dtype=np.uint8)
+    return cv2.resize(roi, (roi_size, roi_size), interpolation=cv2.INTER_LINEAR)
 
 
-def extract_geometric_rois(image: np.ndarray, is_left: bool) -> dict[str, np.ndarray]:
+def extract_geometric_rois(
+    image: np.ndarray,
+    is_left: bool,
+    roi_size: int = DEFAULT_OSTEOPHYTE_ROI_SIZE,
+) -> dict[str, np.ndarray]:
     """Extract all osteophyte ROIs using the fixed geometric fallback."""
-    return {site: extract_geometric_roi(image, is_left, site) for site in ROI_SITES}
+    return {site: extract_geometric_roi(image, is_left, site, roi_size=roi_size) for site in ROI_SITES}
 
 
 def extract_landmark_rois(
     image: np.ndarray,
     is_left: bool,
     landmark_detector: KNEELLandmarkDetector,
+    roi_size: int = DEFAULT_OSTEOPHYTE_ROI_SIZE,
 ) -> dict[str, np.ndarray]:
     """Extract all osteophyte ROIs using landmark-guided boxes."""
     boxes = ROIDetector.landmark_boxes(
@@ -85,7 +96,7 @@ def extract_landmark_rois(
         apply_preprocessing=False,
         require_reliable=True,
     )
-    rois = ROIDetector.crop_from_boxes(image, boxes, osteophyte_roi_size=224)
+    rois = ROIDetector.crop_from_boxes(image, boxes, osteophyte_roi_size=roi_size)
     return {site: rois[site] for site in ROI_SITES}
 
 
@@ -94,13 +105,14 @@ def _landmark_worker(
     image: np.ndarray,
     is_left: bool,
     backend: str,
+    roi_size: int,
 ) -> None:
     try:
         detector = KNEELLandmarkDetector(
             backend=backend,
             allow_backend_fallback=True,
         )
-        rois = extract_landmark_rois(image, is_left, detector)
+        rois = extract_landmark_rois(image, is_left, detector, roi_size=roi_size)
         queue.put(("ok", rois))
     except Exception as exc:  # pragma: no cover - defensive worker boundary
         queue.put(("error", f"{type(exc).__name__}:{exc}"))
@@ -111,19 +123,20 @@ def extract_landmark_rois_with_timeout(
     is_left: bool,
     backend: str,
     timeout_seconds: float,
+    roi_size: int = DEFAULT_OSTEOPHYTE_ROI_SIZE,
 ) -> dict[str, np.ndarray]:
     if timeout_seconds <= 0:
         detector = KNEELLandmarkDetector(
             backend=backend,
             allow_backend_fallback=True,
         )
-        return extract_landmark_rois(image, is_left, detector)
+        return extract_landmark_rois(image, is_left, detector, roi_size=roi_size)
 
     ctx = mp.get_context("spawn")
     queue = ctx.Queue()
     process = ctx.Process(
         target=_landmark_worker,
-        args=(queue, image, is_left, backend),
+        args=(queue, image, is_left, backend, roi_size),
     )
     process.start()
     process.join(timeout_seconds)
@@ -193,11 +206,15 @@ def resolve_jsn_mask_path(
     return None, None
 
 
-def extract_jsn_guided_rois(image: np.ndarray, mask: np.ndarray) -> dict[str, np.ndarray]:
+def extract_jsn_guided_rois(
+    image: np.ndarray,
+    mask: np.ndarray,
+    roi_size: int = DEFAULT_OSTEOPHYTE_ROI_SIZE,
+) -> dict[str, np.ndarray]:
     landmarks = landmarks_from_jsn_mask(mask)
     if landmarks.low_confidence:
         raise ValueError("jsn_mask_low_confidence")
-    rois = extract_kneel_rois(image, landmarks, osteophyte_roi_size=224)
+    rois = extract_kneel_rois(image, landmarks, osteophyte_roi_size=roi_size)
     return {site: rois[site] for site in ROI_SITES}
 
 
@@ -245,9 +262,16 @@ def load_retry_index(csv_path: Path) -> pd.DataFrame:
     return subset
 
 
-def image_has_all_roi_outputs(output_dir: Path, split: str, image_id: str) -> bool:
+def image_has_all_roi_outputs(output_dir: Path, split: str, image_id: str, roi_size: int) -> bool:
     split_dir = output_dir / split
-    return all((split_dir / f"{image_id}_{site}.png").exists() for site in ROI_SITES)
+    for site in ROI_SITES:
+        roi_path = split_dir / f"{image_id}_{site}.png"
+        if not roi_path.exists():
+            return False
+        roi = cv2.imread(str(roi_path), cv2.IMREAD_GRAYSCALE)
+        if roi is None or roi.shape[:2] != (roi_size, roi_size):
+            return False
+    return True
 
 
 def main() -> None:
@@ -283,6 +307,12 @@ def main() -> None:
     )
     parser.add_argument("--clahe-clip", type=float, default=3.0, help="CLAHE clip limit.")
     parser.add_argument("--clahe-tile", type=int, default=8, help="CLAHE tile grid size.")
+    parser.add_argument(
+        "--osteophyte-roi-size",
+        type=int,
+        default=DEFAULT_OSTEOPHYTE_ROI_SIZE,
+        help="Output size in pixels for each square osteophyte ROI patch.",
+    )
     parser.add_argument(
         "--landmark-backend",
         choices=("heuristic", "kneel_repo"),
@@ -350,6 +380,9 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    osteophyte_roi_size = int(args.osteophyte_roi_size)
+    if osteophyte_roi_size <= 0:
+        raise ValueError(f"--osteophyte-roi-size must be positive, got {osteophyte_roi_size}")
     failure_log_path = resolve_failure_log_path(output_dir, args.failure_log)
     audit_log_path = resolve_audit_log_path(output_dir, args.audit_log)
 
@@ -364,6 +397,7 @@ def main() -> None:
         label_desc = "scan full dataset" if args.scan_all_images else (args.labels_csv or "none")
     print(f"Labels: {label_desc}", flush=True)
     print(f"CLAHE: clip_limit={args.clahe_clip}, tile_grid={args.clahe_tile}x{args.clahe_tile}", flush=True)
+    print(f"Osteophyte ROI size: {osteophyte_roi_size}x{osteophyte_roi_size}", flush=True)
     if args.geometry_only:
         roi_mode = "geometric only"
     else:
@@ -416,7 +450,7 @@ def main() -> None:
             split = str(row["split"])
             is_left = image_id.upper().endswith("L")
 
-            if args.skip_existing and image_has_all_roi_outputs(output_dir, split, image_id):
+            if args.skip_existing and image_has_all_roi_outputs(output_dir, split, image_id, osteophyte_roi_size):
                 skipped_existing += 1
                 if index % progress_every == 0 or index == total_images:
                     elapsed = time.monotonic() - started_at
@@ -519,7 +553,7 @@ def main() -> None:
                     })
                 else:
                     try:
-                        rois = extract_jsn_guided_rois(enhanced, jsn_mask)
+                        rois = extract_jsn_guided_rois(enhanced, jsn_mask, roi_size=osteophyte_roi_size)
                         extraction_mode = str(jsn_mode)
                         reason = f"{jsn_mode}_success"
                     except Exception as exc:
@@ -532,9 +566,9 @@ def main() -> None:
             if rois is None:
                 try:
                     if args.geometry_only:
-                        rois = extract_geometric_rois(enhanced, is_left)
+                        rois = extract_geometric_rois(enhanced, is_left, roi_size=osteophyte_roi_size)
                     elif args.skip_landmark_if_no_jsn:
-                        rois = extract_geometric_rois(enhanced, is_left)
+                        rois = extract_geometric_rois(enhanced, is_left, roi_size=osteophyte_roi_size)
                         extraction_mode = "geometric_fallback"
                         reason = "no_jsn_mask_geometry_only"
                     else:
@@ -543,6 +577,7 @@ def main() -> None:
                             is_left,
                             backend=args.landmark_backend,
                             timeout_seconds=float(args.landmark_timeout_seconds),
+                            roi_size=osteophyte_roi_size,
                         )
                         extraction_mode = "landmark"
                         reason = "landmark_success"
@@ -553,7 +588,7 @@ def main() -> None:
                         "split": split,
                         "reason": reason,
                     })
-                    rois = extract_geometric_rois(enhanced, is_left)
+                    rois = extract_geometric_rois(enhanced, is_left, roi_size=osteophyte_roi_size)
                     extraction_mode = "geometric_fallback"
 
             mode_counts[extraction_mode] += 1

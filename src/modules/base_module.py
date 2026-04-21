@@ -5,8 +5,22 @@ from typing import Any, Dict
 import torch
 import pytorch_lightning as pl
 from omegaconf import DictConfig
+from omegaconf import OmegaConf
 
 from src.utils.device import clear_memory
+
+
+def _redact_hyperparameter_secrets(cfg: DictConfig) -> DictConfig:
+    """Return a copy of the config with runtime secrets removed before logging."""
+    cfg_copy = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+    for section_name in ("wandb",):
+        section = cfg_copy.get(section_name)
+        if section is None:
+            continue
+        for key in ("WANDB_API_KEY", "api_key"):
+            if key in section:
+                section[key] = ""
+    return cfg_copy
 
 
 class BaseModule(pl.LightningModule):
@@ -15,7 +29,7 @@ class BaseModule(pl.LightningModule):
     def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
-        self.save_hyperparameters(cfg)
+        self.save_hyperparameters(_redact_hyperparameter_secrets(cfg))
 
     def configure_optimizers(self):
         train_cfg = self.cfg.training
