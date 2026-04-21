@@ -22,12 +22,67 @@ from src.features.texture_features import extract_all_texture_features
 from src.utils.annotation_confidence import normalize_confidence
 from src.utils.annotation_paths import resolve_annotation_csv, select_label_subset
 
+FAILURE_FIELDNAMES = [
+    "image_id",
+    "split",
+    "reason",
+    "path",
+    "reader_status",
+    "exists",
+    "is_file",
+    "size_bytes",
+    "detail",
+]
+
 
 def _resolve_image_path(data_root: Path, split: str, image_id: str) -> Path | None:
     matches = list((data_root / split).rglob(f"{image_id}.png"))
     if not matches:
         return None
     return matches[0]
+
+
+def _path_diagnostics(path: Path | None) -> dict[str, object]:
+    if path is None:
+        return {
+            "path": "",
+            "exists": "",
+            "is_file": "",
+            "size_bytes": "",
+        }
+
+    exists = path.exists()
+    is_file = path.is_file()
+    size_bytes: int | str = ""
+    if exists:
+        try:
+            size_bytes = path.stat().st_size
+        except OSError:
+            size_bytes = ""
+    return {
+        "path": str(path),
+        "exists": exists,
+        "is_file": is_file,
+        "size_bytes": size_bytes,
+    }
+
+
+def _failure_row(
+    image_id: str,
+    split: str,
+    reason: str,
+    path: Path | None = None,
+    reader_status: str = "",
+    detail: str = "",
+) -> dict[str, object]:
+    return {
+        "image_id": image_id,
+        "split": split,
+        "reason": reason,
+        "reader_status": reader_status,
+        "detail": detail,
+        **_path_diagnostics(path),
+    }
 
 
 def _load_label_map(annotation_dir: Path, label_mode: str, allow_bootstrap_fallback: bool) -> dict[str, dict]:
@@ -192,12 +247,18 @@ def main() -> None:
             split = row["split"]
             image_path = _resolve_image_path(data_root, split, image_id)
             if image_path is None:
-                remaining_failures.append({"image_id": image_id, "split": split, "reason": "image_not_found"})
+                remaining_failures.append(_failure_row(image_id, split, "image_not_found"))
                 continue
 
             image = image_reader.read(image_path)
             if image is None:
-                remaining_failures.append({"image_id": image_id, "split": split, "reason": "image_load_failed"})
+                remaining_failures.append(_failure_row(
+                    image_id,
+                    split,
+                    "image_load_failed",
+                    path=image_path,
+                    reader_status=getattr(image_reader, "last_status", ""),
+                ))
                 continue
 
             mask_path = jsn_mask_dir / f"{image_id}_mask.npy"
@@ -238,7 +299,12 @@ def main() -> None:
                 medial_roi, lateral_roi = extract_geometric_subchondral_roi(image, is_left=is_left)
                 roi_source = "geometric_fallback"
             if medial_roi is None or lateral_roi is None:
-                remaining_failures.append({"image_id": image_id, "split": split, "reason": "subchondral_roi_failed"})
+                remaining_failures.append(_failure_row(
+                    image_id,
+                    split,
+                    "subchondral_roi_failed",
+                    path=image_path,
+                ))
                 continue
 
             if medial_roi.shape != (roi_output_size, roi_output_size):
@@ -334,7 +400,7 @@ def main() -> None:
 
     remaining_failure_csv.parent.mkdir(parents=True, exist_ok=True)
     with remaining_failure_csv.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["image_id", "split", "reason"])
+        writer = csv.DictWriter(handle, fieldnames=FAILURE_FIELDNAMES)
         writer.writeheader()
         writer.writerows(remaining_failures)
 

@@ -476,7 +476,7 @@ elif [[ "${ENABLE_JSN_SELF_TRAINING}" == "1" ]]; then
     "${ROOT_DIR}/scripts/extract_jsn_features.py" \
     training.label_mode=manual \
     +model=unetpp \
-    "checkpoint_path=${SELECTED_JSN_CHECKPOINT}"
+    "checkpoint_path='${SELECTED_JSN_CHECKPOINT}'"
   echo
 else
   echo "[13a/${TOTAL_STEPS}] JSN self-training branch disabled"

@@ -40,6 +40,63 @@ PROGRESS_FIELDNAMES = [
     "confidence_level",
     "roi_source",
 ]
+FAILURE_FIELDNAMES = [
+    "image_id",
+    "split",
+    "reason",
+    "path",
+    "reader_status",
+    "exists",
+    "is_file",
+    "size_bytes",
+    "detail",
+]
+
+
+def _path_diagnostics(path: Path | None) -> dict[str, object]:
+    if path is None:
+        return {
+            "path": "",
+            "exists": "",
+            "is_file": "",
+            "size_bytes": "",
+        }
+
+    exists = path.exists()
+    is_file = path.is_file()
+    size_bytes: int | str = ""
+    if exists:
+        try:
+            size_bytes = path.stat().st_size
+        except OSError:
+            size_bytes = ""
+    return {
+        "path": str(path),
+        "exists": exists,
+        "is_file": is_file,
+        "size_bytes": size_bytes,
+    }
+
+
+def _write_failure(
+    writer: csv.DictWriter,
+    handle,
+    image_id: str,
+    split: str,
+    reason: str,
+    path: Path | None = None,
+    reader_status: str = "",
+    detail: str = "",
+) -> None:
+    writer.writerow({
+        "image_id": image_id,
+        "split": split,
+        "reason": reason,
+        "reader_status": reader_status,
+        "detail": detail,
+        **_path_diagnostics(path),
+    })
+    handle.flush()
 
 
 def _strategy_is_separate(cfg: DictConfig, checkpoint_root: Path) -> bool:
@@ -536,7 +593,7 @@ def main(cfg: DictConfig):
         with open(failure_log_path, "w", newline="", encoding="utf-8") as failure_handle:
             failure_writer = csv.DictWriter(
                 failure_handle,
-                fieldnames=["image_id", "split", "reason"],
+                fieldnames=FAILURE_FIELDNAMES,
             )
             failure_writer.writeheader()
 
@@ -584,12 +641,15 @@ def main(cfg: DictConfig):
 
                             image = image_reader.read(img_path)
                             if image is None:
-                                failure_writer.writerow({
-                                    "image_id": image_id,
-                                    "split": split,
-                                    "reason": "image_load_failed",
-                                })
-                                failure_handle.flush()
+                                _write_failure(
+                                    failure_writer,
+                                    failure_handle,
+                                    image_id=image_id,
+                                    split=split,
+                                    reason="image_load_failed",
+                                    path=img_path,
+                                    reader_status=getattr(image_reader, "last_status", ""),
+                                )
                                 skipped_images += 1
                                 continue
 
@@ -597,13 +657,16 @@ def main(cfg: DictConfig):
                             if mask_path.exists():
                                 try:
                                     jsn_mask = np.load(str(mask_path))
-                                except Exception:
-                                    failure_writer.writerow({
-                                        "image_id": image_id,
-                                        "split": split,
-                                        "reason": "jsn_mask_load_failed",
-                                    })
-                                    failure_handle.flush()
+                                except Exception as exc:
+                                    _write_failure(
+                                        failure_writer,
+                                        failure_handle,
+                                        image_id=image_id,
+                                        split=split,
+                                        reason="jsn_mask_load_failed",
+                                        path=mask_path,
+                                        detail=type(exc).__name__,
+                                    )
                                     jsn_mask = np.zeros_like(image, dtype=np.uint8)
                             else:
                                 jsn_mask = np.zeros_like(image, dtype=np.uint8)
@@ -630,13 +693,16 @@ def main(cfg: DictConfig):
                                     surface_smoothing_window=roi_surface_smoothing_window,
                                     output_size=roi_output_size,
                                 )
-                            except Exception:
-                                failure_writer.writerow({
-                                    "image_id": image_id,
-                                    "split": split,
-                                    "reason": "subchondral_roi_failed",
-                                })
-                                failure_handle.flush()
+                            except Exception as exc:
+                                _write_failure(
+                                    failure_writer,
+                                    failure_handle,
+                                    image_id=image_id,
+                                    split=split,
+                                    reason="subchondral_roi_failed",
+                                    path=img_path,
+                                    detail=type(exc).__name__,
+                                )
                                 medial_roi, lateral_roi = None, None
                                 roi_source = "jsn_exception"
                             if medial_roi is None or lateral_roi is None:
