@@ -1,4 +1,5 @@
 name: "sclerosis_hybrid"
+input_mode: "hybrid"
 cnn_backbone: "efficientnet_b0"
 pretrained: true
 in_channels: 1
@@ -10,7 +11,7 @@ class_names:
 texture_feature_dim: 65
 side_embedding_dim: 8
 fusion_hidden_dim: 256
-use_side_specific_heads: true
+use_side_specific_heads: false
 side_head_hidden_dim: 128
 dropout_cnn: 0.3
 dropout_fusion: 0.4

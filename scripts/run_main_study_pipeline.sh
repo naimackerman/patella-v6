@@ -537,21 +537,23 @@ fi
 SCLEROSIS_MODEL_ARGS=(
   +model=sclerosis_hybrid
   training.sclerosis_strategy=multitask_heads
-  model.use_side_specific_heads=true
+  model.input_mode=hybrid
+  model.use_side_specific_heads=false
   model.dropout_cnn=0.3
   model.dropout_fusion=0.4
 )
 
 SCLEROSIS_TRAINING_ARGS=(
   training.scheduler=cosine
-  training.learning_rate=1.0e-4
-  training.weight_decay=1.0e-5
+  training.learning_rate=3.0e-5
+  training.weight_decay=1.0e-4
   training.early_stopping.patience=20
   training.accumulate_grad_batches=4
   training.log_every_n_steps=5
   training.sclerosis_backbone_freeze_epochs=0
-  training.sclerosis_sampling.multiplier_power=1.0
-  training.sclerosis_sampling.max_weight_ratio_to_median=null
+  training.sclerosis_sampling.multiplier_power=0.75
+  training.sclerosis_sampling.max_weight_ratio_to_median=2.0
+  training.sclerosis_ordinal_weight=0.1
 )
 
 SCLEROSIS_DEVPOOL_ARGS=(
@@ -561,11 +563,8 @@ SCLEROSIS_DEVPOOL_ARGS=(
 )
 
 SCLEROSIS_STAGE17_TUNED_ARGS=(
-  training.learning_rate=7.5e-5
-  training.weight_decay=3.0e-5
-  training.early_stopping.patience=28
-  model.dropout_fusion=0.45
-  training.sclerosis_sampling.multiplier_power=0.75
+  training.early_stopping.patience=24
+  model.dropout_fusion=0.4
 )
 
 SCLEROSIS_PSEUDO_ARGS=(

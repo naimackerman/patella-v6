@@ -113,12 +113,22 @@ subchondral band below the tibial plateau, configured under
 `preprocessing.sclerosis_roi`. Keep that extractor fixed when comparing
 sclerosis runs so the ROI definition remains consistent.
 
-The current Stage 2C default is a compartment-aware multitask setup: one shared
-hybrid feature extractor is trained on all sclerosis ROIs, but medial and
-lateral predictions are produced by separate classifier heads and optimized with
-ordinal supervision. This keeps the task aligned with per-compartment
-sclerosis grading while preserving more training signal than two fully separate
-models.
+The current Stage 2C default is a conservative shared-head hybrid setup: one
+hybrid feature extractor is trained on all medial/lateral sclerosis ROIs, side
+identity is supplied as a covariate, and class/sampling weights are capped to
+avoid collapse toward the `significant` class. This keeps the model aligned with
+per-compartment sclerosis grading while preserving training signal from the
+small manual-label set.
+
+For Stage 2C reporting, run a texture-only baseline before accepting the hybrid
+model as the main sclerosis result:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/train_sclerosis.py training.label_mode=manual +model=sclerosis_hybrid model.input_mode=texture_only model.use_side_specific_heads=false training.sclerosis_strategy=shared training.sclerosis_sampling.max_weight_ratio_to_median=2.0
+```
+
+Then compare it against the default hybrid run. Report the hybrid model only if
+it improves macro-F1 and preserves useful recall for the `none` class.
 
 ## 6. Semi-Supervised Expansion
 

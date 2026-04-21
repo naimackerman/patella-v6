@@ -89,9 +89,9 @@ sclerosis_strategy: "multitask_heads"
 sclerosis_backbone_freeze_epochs: 0
 sclerosis_sampling:
   multiplier_power: 1.0
-  max_weight_ratio_to_median: null
+  max_weight_ratio_to_median: 2.0
 sclerosis_use_ordinal_loss: true
-sclerosis_ordinal_weight: 0.25
+sclerosis_ordinal_weight: 0.1
 sclerosis_roi_source_filter:
   train: []
   eval: []

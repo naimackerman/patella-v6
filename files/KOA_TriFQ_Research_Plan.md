@@ -277,7 +277,16 @@ class OsteophyteGrader(nn.Module):
 
 This is the **most novel module** — sclerosis is the least studied of the three features, and no integrated system has previously included it.
 
-**Architecture**: Hybrid pipeline combining handcrafted texture features + EfficientNet-B0 classification
+**Architecture**: staged sclerosis validation pipeline:
+
+1. Texture-only baseline using handcrafted LBP/GLCM/fractal/intensity features
+2. CNN-only baseline using the subchondral ROI image
+3. Shared-head hybrid classifier combining texture features + EfficientNet-B0 ROI features
+
+The hybrid model remains the intended main model, but it is accepted as the
+reported sclerosis classifier only if it improves over the simpler texture-only
+and CNN-only baselines. This is important because the supervised sclerosis set
+is small and sclerosis labels are visually noisier than osteophyte grades.
 
 **Sub-step 2C.1: Automatic Subchondral ROI Definition**
 
@@ -392,6 +401,14 @@ class SclerosisClassifier(nn.Module):
         return self.classifier(fused)
 ```
 
+Implementation note: the default supervised Stage 2C training now uses one
+shared classifier across medial and lateral ROIs, with side information supplied
+as a covariate rather than as fully separate classifier heads. Side-specific
+heads are reserved for follow-up experiments after the shared model establishes
+a reliable baseline. This reduces overfitting on the 500-image manual set and
+directly addresses failure modes where class balancing pushes the model toward
+the `significant` class while losing sensitivity for `none`.
+
 **Output features**:
 - `scl_grade_medial`: Sclerosis grade for medial subchondral region (0=none, 1=mild, 2=significant)
 - `scl_grade_lateral`: Sclerosis grade for lateral subchondral region
@@ -400,7 +417,10 @@ class SclerosisClassifier(nn.Module):
 - `scl_lbp_vector`: LBP histogram features (for density heatmap generation)
 - `scl_fractal_dim`: Fractal dimension (trabecular complexity metric)
 
-**Evaluation metrics**: Multi-class accuracy (target ≥ 82%), AUC per class, confusion matrix, correlation with KL grade (expected r ≥ 0.65)
+**Evaluation metrics**: macro-F1, balanced per-class recall, multi-class accuracy,
+AUC per class, confusion matrix, and correlation with KL grade (expected r ≥
+0.65). Macro-F1 and the recall of the `none` class are primary safeguards
+against a clinically unusable model that over-predicts sclerosis.
 
 ---
 

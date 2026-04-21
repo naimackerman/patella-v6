@@ -18,26 +18,37 @@ class SclerosisClassifier(nn.Module):
         super().__init__()
         self.num_classes = int(cfg.num_classes)
         self.use_side_specific_heads = bool(getattr(cfg, "use_side_specific_heads", False))
+        self.input_mode = str(getattr(cfg, "input_mode", "hybrid")).lower()
+        valid_modes = {"hybrid", "texture_only", "image_only"}
+        if self.input_mode not in valid_modes:
+            raise ValueError(f"Unsupported sclerosis input_mode: {self.input_mode}")
 
-        # CNN branch
-        self.cnn = timm.create_model(
-            cfg.cnn_backbone,
-            pretrained=cfg.pretrained,
-            num_classes=0,
-            in_chans=cfg.in_channels,
-        )
-        cnn_dim = self.cnn.num_features  # 1280 for EfficientNet-B0
+        if self.input_mode in {"hybrid", "image_only"}:
+            self.cnn = timm.create_model(
+                cfg.cnn_backbone,
+                pretrained=cfg.pretrained,
+                num_classes=0,
+                in_chans=cfg.in_channels,
+            )
+            cnn_dim = self.cnn.num_features  # 1280 for EfficientNet-B0
+        else:
+            self.cnn = None
+            cnn_dim = 0
 
-        # Texture MLP branch
-        texture_dim = cfg.texture_feature_dim
-        self.texture_mlp = nn.Sequential(
-            nn.Linear(texture_dim, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(cfg.dropout_cnn),
-            nn.Linear(128, 64),
-        )
+        if self.input_mode in {"hybrid", "texture_only"}:
+            texture_dim = cfg.texture_feature_dim
+            self.texture_mlp = nn.Sequential(
+                nn.Linear(texture_dim, 128),
+                nn.ReLU(inplace=True),
+                nn.Dropout(cfg.dropout_cnn),
+                nn.Linear(128, 64),
+            )
+            texture_out_dim = 64
+        else:
+            self.texture_mlp = None
+            texture_out_dim = 0
 
-        fusion_input_dim = cnn_dim + 64
+        fusion_input_dim = cnn_dim + texture_out_dim
         self.shared_fusion = nn.Sequential(
             nn.Linear(fusion_input_dim, cfg.fusion_hidden_dim),
             nn.ReLU(inplace=True),
@@ -89,9 +100,12 @@ class SclerosisClassifier(nn.Module):
         Returns:
             (B, 3) logits for sclerosis grades.
         """
-        cnn_feat = self.cnn(roi_image)
-        tex_feat = self.texture_mlp(texture_features)
-        fused = self.shared_fusion(torch.cat([cnn_feat, tex_feat], dim=1))
+        features = []
+        if self.cnn is not None:
+            features.append(self.cnn(roi_image))
+        if self.texture_mlp is not None:
+            features.append(self.texture_mlp(texture_features))
+        fused = self.shared_fusion(torch.cat(features, dim=1))
         if side_ids is None:
             side_ids = torch.zeros(roi_image.shape[0], dtype=torch.long, device=roi_image.device)
 
