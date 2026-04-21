@@ -1,0 +1,13 @@
+name: "convnext_small_hybrid"
+backbone: "convnext_small"
+pretrained: true
+in_channels: 1
+num_classes: 5
+feature_dim: 62
+fusion_hidden_dim: 256
+dropout_feature: 0.3
+dropout_fusion: 0.4
+gradient_checkpointing: true
+freeze_epochs: 50
+unfreeze_lr: 1.0e-5
+loss_type: "soft_label"  # "soft_label" or "corn"

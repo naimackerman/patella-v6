@@ -1,0 +1,37 @@
+defaults:
+  - data: kl224
+  - preprocessing: default
+  - training: default
+  - _self_
+
+seed: 42
+project_name: "xrai-oa"
+project_root: "${oc.env:PROJECT_ROOT,${hydra:runtime.cwd}}"
+data_root: "${oc.env:DATA_ROOT,${project_root}/KneeXrayData}"
+output_dir: "${project_root}/outputs"
+checkpoint_dir: "${project_root}/checkpoints"
+feature_dir: "${project_root}/features"
+osteophyte_roi_dir: "${feature_dir}/rois"
+sclerosis_output_dir: "${feature_dir}/sclerosis"
+annotation_dir: "${project_root}/annotations"
+result_dir: "${project_root}/results"
+checkpoint_path: null
+checkpoint_monitor: null
+checkpoint_mode: "max"
+jsn_checkpoint_subdir: "jsn_segmenter"
+jsn_logger_name: "jsn_segmenter"
+jsn_selected_checkpoint_file: "${checkpoint_dir}/jsn_segmenter_selected.txt"
+jsn_evaluation_filename: "jsn_evaluation.json"
+jsn_pseudo_split: "train"
+jsn_pseudo_output_dir: "${annotation_dir}/jsn_pseudo_masks"
+
+device: "auto"
+
+wandb:
+  enabled: true
+  project: "xrai-oa"
+  entity: null
+  mode: "online"
+  id: '${oc.env:WANDB_RUN_ID,""}'
+  resume: '${oc.env:WANDB_RESUME,""}'
+  WANDB_API_KEY: '${oc.env:WANDB_API_KEY,""}'

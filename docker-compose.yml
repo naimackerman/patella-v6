@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  koa-trifq-gradio:
+    build: .
+    command: python app/gradio_app.py
+    ports:
+      - "7860:7860"
+    volumes:
+      - .:/app
+    environment:
+      PROJECT_ROOT: /app
+
+  koa-trifq-api:
+    build: .
+    command: uvicorn app.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      PROJECT_ROOT: /app

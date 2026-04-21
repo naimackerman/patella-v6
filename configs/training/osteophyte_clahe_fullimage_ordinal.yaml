@@ -1,0 +1,94 @@
+# Training config for ROI extracted from CLAHE-enhanced FULL IMAGE
+# Strategy: CLAHE on full X-ray → Extract ROI → Normalize only
+
+# Preprocessing - NO CLAHE on ROI (already applied on full image)
+preprocessing:
+  # NO CLAHE here - already applied on full image during extraction
+  # clahe:
+  #   clip_limit: 3.0
+  #   tile_grid_size: [8, 8]
+  
+  # NO histogram clip - preserve all texture information
+  # histogram_clip:
+  #   low_percentile: 5
+  #   high_percentile: 99
+  
+  normalize:
+    mean: [0.485]
+    std: [0.229]
+  
+  augmentation:
+    # Light augmentation from Patella
+    rotation_limit: 5
+    horizontal_flip_p: 0.0  # NO FLIP for osteophyte
+    brightness_limit: 0.1
+    contrast_limit: 0.1
+    scale_range: [0.95, 1.05]
+    translate_pct: 0.05
+
+# Model - SEResNet50 (proven backbone)
+model:
+  name: "osteophyte_clahe_fullimage"
+  backbone: "seresnet50"
+  pretrained: true
+  in_channels: 1
+  num_classes_per_head: 4
+  num_heads: 4
+  roi_size: 224
+  # Dropout in backbone (from Patella - CRITICAL!)
+  dropout: 0.3
+  # MLP head dropouts
+  head_dropout_pre: 0.3
+  head_dropout_post: 0.3
+
+# Training
+training:
+  max_epochs: 100
+  batch_size: 32
+  learning_rate: 5.0e-5    # Proven LR
+  weight_decay: 5.0e-4
+  precision: "16-mixed"
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 2
+  
+  # Layer-wise LR (from Patella)
+  layer_wise_lr:
+    enabled: true
+    backbone_ratio: 0.1
+  
+  # Loss function
+  loss: "ordinal_focal"
+  focal_alpha: 0.5
+  focal_gamma: 2.0
+  ordinal_weight: 0.5
+  
+  # Class weighting (from Patella)
+  class_weighting:
+    enabled: true
+    strategy: "effective_number"
+    beta: 0.9999
+    max_weight: 3.0
+    min_weight: 0.3
+    g3_boost: 2.5
+  
+  # Scheduler
+  scheduler: "reduce_on_plateau"
+  scheduler_params:
+    mode: "max"
+    factor: 0.5
+    patience: 10
+    verbose: true
+  
+  # Early stopping
+  early_stopping:
+    monitor: "val_kappa_mean"
+    patience: 20
+    mode: "max"
+  
+  checkpoint_dir: "checkpoints/clahe_fullimage_ordinal"
+
+# Data - ROI from CLAHE-enhanced full images using reviewed/manual labels
+data:
+  num_workers: 4
+  roi_dir: "features/rois_osteophyte_clahe_full"
+  labels_csv: "annotations/osteophyte_labels_reviewed.csv"

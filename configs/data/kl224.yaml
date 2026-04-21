@@ -1,0 +1,23 @@
+name: "kneeKL224"
+root: "${data_root}/ClsKLData/kneeKL224"
+image_size: 224
+channels: 1
+num_classes: 5
+class_names:
+  - "KL0"
+  - "KL1"
+  - "KL2"
+  - "KL3"
+  - "KL4"
+class_weights:
+  - 1.0
+  - 2.17
+  - 1.50
+  - 3.00
+  - 13.14
+splits:
+  train: "train"
+  val: "val"
+  test: "test"
+batch_size: 8
+num_workers: 0

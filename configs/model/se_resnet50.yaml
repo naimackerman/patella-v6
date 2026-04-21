@@ -1,0 +1,17 @@
+name: "se_resnet50_osteophyte"
+backbone: "seresnet50"
+pretrained: true
+in_channels: 1
+num_classes_per_head: 4
+num_heads: 4
+roi_size: 140
+dropout: 0.3
+use_mlp_heads: true
+head_hidden_dim: 256
+head_dropout_pre: 0.3
+head_dropout_post: 0.3
+head_names:
+  - "medial_femur"
+  - "lateral_femur"
+  - "medial_tibia"
+  - "lateral_tibia"

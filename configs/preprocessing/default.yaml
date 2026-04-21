@@ -1,0 +1,54 @@
+clahe:
+  clip_limit: 3.0
+  tile_grid_size: [8, 8]
+
+roi_strategy: "auto"
+landmark_backend: "heuristic"
+allow_landmark_backend_fallback: true
+kneel_repo:
+  api_url: "http://127.0.0.1:5000/kneel/predict/bilateral"
+  request_timeout_s: 45.0
+  default_spacing_mm: 0.2
+  bilateral_padding_px: 0
+
+histogram_clip:
+  low_percentile: 5
+  high_percentile: 99
+
+normalize:
+  mean: [0.485]
+  std: [0.229]
+
+image_read_timeout_seconds: 5.0
+
+jsn_measurement:
+  internal_profile_points_per_compartment: 64
+  contour_smoothing_window: 5
+  local_x_window_fraction: 0.10
+  endpoint_trim_fraction: 0.10
+  mjsw_profile_smoothing_window: 3
+
+sclerosis_roi:
+  min_depth_px: 20
+  depth_fraction: 0.12
+  medial_depth_fraction: 0.12
+  lateral_depth_fraction: 0.10
+  offset_pct: 0.10
+  medial_offset_pct: 0.10
+  lateral_offset_pct: 0.16
+  medial_inner_offset_pct: 0.10
+  medial_outer_offset_pct: 0.10
+  lateral_inner_offset_pct: 0.10
+  lateral_outer_offset_pct: 0.24
+  surface_offset_fraction: 0.015
+  surface_smoothing_window: 5
+  output_size: 96
+
+augmentation:
+  rotation_limit: 10
+  horizontal_flip_p: 0.5
+  segmentation_horizontal_flip_p: 0.0
+  brightness_limit: 0.15
+  contrast_limit: 0.15
+  scale_range: [0.9, 1.1]
+  translate_pct: 0.05

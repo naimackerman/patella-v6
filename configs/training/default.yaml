@@ -1,0 +1,103 @@
+max_epochs: 200
+learning_rate: 1.0e-4
+weight_decay: 1.0e-5
+optimizer: "adamw"
+scheduler: "cosine"
+label_mode: "manual"
+allow_bootstrap_fallback: false
+log_every_n_steps: 10
+pseudo_confidence_threshold_osteophyte: 0.90
+pseudo_confidence_threshold_sclerosis: 0.90
+pseudo_confidence_threshold_osteophyte_min: 0.75
+pseudo_confidence_threshold_sclerosis_min: 0.75
+pseudo_confidence_threshold_step: 0.05
+pseudo_target_rows_osteophyte: 250
+pseudo_target_rows_osteophyte_per_site: null
+pseudo_target_rows_sclerosis: 250
+pseudo_balance_osteophyte_by_site: true
+scheduler_params:
+  T_max: ${training.max_epochs}
+  eta_min: 1.0e-6
+  mode: "max"
+  factor: 0.5
+  patience: 10
+scheduler_monitor: null
+jsn_pseudo_confidence_threshold: 0.90
+jsn_pseudo_min_foreground_pixels: 8
+jsn_self_training:
+  enabled: false
+  pseudo_mask_dir: "${annotation_dir}/jsn_pseudo_masks/train"
+early_stopping:
+  monitor: "val_dice"
+  patience: 20
+  mode: "max"
+gradient_clip_val: 1.0
+precision: "32-true"
+accumulate_grad_batches: 4
+annotation_confidence:
+  min_train: "low"
+  min_eval: "low"
+  weight_low: 0.5
+  weight_medium: 0.75
+  weight_high: 1.0
+osteophyte_loss: "focal_ordinal"
+osteophyte_ordinal_weight: 0.5
+focal_alpha: 0.5
+focal_gamma: 2.0
+osteophyte_disable_horizontal_flip: true
+osteophyte_class_balance:
+  enabled: true
+  power: 1.0
+  normalize: true
+osteophyte_optimization:
+  max_epochs: 300
+  learning_rate: 5.0e-5
+  weight_decay: 5.0e-4
+  early_stopping_patience: 30
+osteophyte_warm_start_checkpoint: null
+osteophyte_resume_multitask_checkpoint: null
+osteophyte_force_retrain_multitask: false
+layer_wise_lr:
+  enabled: false
+  backbone_ratio: 0.1
+osteophyte_sampling:
+  strategy: "max_severity"
+  power: 1.0
+  normalize: true
+  use_confidence_weights: false
+  confidence_power: 1.0
+  max_weight_ratio_to_median: null
+osteophyte_checkpoint_overrides: {}
+osteophyte_checkpoint_selection:
+  prefer_refined: true
+  force_multitask_sites: []
+  force_refined_sites: []
+osteophyte_refinement:
+  learning_rate: 5.0e-5
+  weight_decay: 1.0e-5
+  patience: 12
+  sites: []
+  base_checkpoint_dir: null
+  base_checkpoint_dirs_by_site: {}
+  freeze_non_target_heads: true
+  freeze_backbone: false
+sclerosis_primary_monitor: "val_f1_macro"
+sclerosis_primary_mode: "max"
+sclerosis_secondary_monitor: "val_auc_macro"
+sclerosis_secondary_mode: "max"
+sclerosis_strategy: "multitask_heads"
+sclerosis_backbone_freeze_epochs: 0
+sclerosis_sampling:
+  multiplier_power: 1.0
+  max_weight_ratio_to_median: null
+sclerosis_use_ordinal_loss: true
+sclerosis_ordinal_weight: 0.25
+sclerosis_roi_source_filter:
+  train: []
+  eval: []
+  pseudo: []
+sclerosis_dev_pool:
+  enabled: false
+  n_splits: 5
+  holdout_fold: 0
+sclerosis_cv_folds: 0

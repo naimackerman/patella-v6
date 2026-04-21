@@ -1,0 +1,38 @@
+# @package training
+# Osteophyte-focused preset from the remote osteophyte branch, adapted for this config layout.
+
+defaults:
+  - default
+  - _self_
+
+label_mode: "manual"
+allow_bootstrap_fallback: false
+
+osteophyte_loss: "focal_ordinal"
+focal_alpha: 0.5
+focal_gamma: 2.0
+osteophyte_ordinal_weight: 0.5
+osteophyte_disable_horizontal_flip: true
+
+osteophyte_class_balance:
+  enabled: true
+  power: 1.0
+  normalize: true
+
+osteophyte_sampling:
+  strategy: "max_severity"
+  power: 1.0
+  normalize: true
+  use_confidence_weights: false
+  confidence_power: 1.0
+  max_weight_ratio_to_median: null
+
+max_epochs: 300
+learning_rate: 5.0e-5
+weight_decay: 5.0e-4
+gradient_clip_val: 1.0
+
+early_stopping:
+  monitor: "val_kappa_mean"
+  patience: 30
+  mode: "max"

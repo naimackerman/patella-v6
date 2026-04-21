@@ -1,0 +1,8 @@
+name: "unetpp_efficientnet_b4"
+architecture: "UnetPlusPlus"
+encoder_name: "efficientnet-b4"
+encoder_weights: "imagenet"
+in_channels: 1
+classes: 3
+activation: null
+gradient_checkpointing: true

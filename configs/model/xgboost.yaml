@@ -1,0 +1,10 @@
+name: "kl_xgboost"
+objective: "multi:softprob"
+num_class: 5
+max_depth: 6
+n_estimators: 300
+learning_rate: 0.05
+reg_alpha: 0.1
+reg_lambda: 1.0
+cv_folds: 5
+eval_metric: "mlogloss"
