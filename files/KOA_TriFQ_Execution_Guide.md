@@ -130,6 +130,23 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_sclerosis.py training.label_mode=m
 Then compare it against the default hybrid run. Report the hybrid model only if
 it improves macro-F1 and preserves useful recall for the `none` class.
 
+To train the same sclerosis model as a binary `none` versus `present` endpoint,
+add `training.sclerosis_label_scheme=binary_present` and use separate output
+paths so binary checkpoints do not mix with 3-class severity checkpoints:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/train_sclerosis.py training.label_mode=manual +model=sclerosis_hybrid training.sclerosis_label_scheme=binary_present model.input_mode=hybrid model.use_side_specific_heads=false training.sclerosis_strategy=multitask_heads training.sclerosis_dev_pool.enabled=true training.sclerosis_dev_pool.n_splits=5 training.sclerosis_dev_pool.holdout_fold=0 training.sclerosis_sampling.max_weight_ratio_to_median=2.0 training.sclerosis_sampling.multiplier_power=0.75 training.learning_rate=3.0e-5 training.weight_decay=1.0e-4 training.max_epochs=100 training.early_stopping.patience=20 sclerosis_output_dir=features/sclerosis_manual_teacher checkpoint_dir=checkpoints/sclerosis_binary_present output_dir=outputs/sclerosis_binary_present
+```
+
+Keep `training.sclerosis_label_scheme=severity` or omit the override for the
+original 3-class `none/mild/significant` run. If using the staged runner,
+pass `SCLEROSIS_LABEL_SCHEME=binary_present` and a separate
+`SCLEROSIS_CHECKPOINT_DIR`, for example:
+
+```bash
+SCLEROSIS_LABEL_SCHEME=binary_present SCLEROSIS_CHECKPOINT_DIR=checkpoints/sclerosis_binary_present ./scripts/run_main_study_pipeline.sh ...
+```
+
 ## 6. Semi-Supervised Expansion
 
 After the first supervised osteophyte and sclerosis models are trained, generate high-confidence pseudo-label expansions:

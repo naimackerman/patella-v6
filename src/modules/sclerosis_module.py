@@ -11,6 +11,7 @@ from src.losses.ordinal_ce import OrdinalCrossEntropyLoss
 from src.modules.base_module import BaseModule
 from src.models.sclerosis_classifier import SclerosisClassifier
 from src.utils.metrics import per_class_metrics
+from src.utils.sclerosis_labels import sclerosis_class_names
 
 
 class SclerosisModule(BaseModule):
@@ -41,6 +42,8 @@ class SclerosisModule(BaseModule):
         self.val_targets = []
         self.val_probs = []
         self.val_side_ids = []
+        self.class_names = list(getattr(cfg.model, "class_names", sclerosis_class_names("severity")))
+        self.num_classes = int(cfg.model.num_classes)
 
     def forward(self, roi_image, texture_features, side_ids=None):
         return self.model(roi_image, texture_features, side_ids)
@@ -129,10 +132,7 @@ class SclerosisModule(BaseModule):
             self.log("val/accuracy", acc, prog_bar=True)
             self.log("val_accuracy", acc, prog_bar=False)
 
-            metrics = per_class_metrics(
-                targets, preds,
-                class_names=["none", "mild", "significant"],
-            )
+            metrics = per_class_metrics(targets, preds, class_names=self.class_names)
             for name, value in metrics.items():
                 if name == "accuracy":
                     continue
@@ -143,7 +143,7 @@ class SclerosisModule(BaseModule):
             probs = np.asarray(self.val_probs, dtype=np.float64)
             if len(np.unique(targets)) > 1:
                 try:
-                    auc = roc_auc_score(targets, probs, multi_class="ovr", average="macro")
+                    auc = self._roc_auc(targets, probs)
                     self.log("val/auc_macro", float(auc), prog_bar=False)
                     self.log("val_auc_macro", float(auc), prog_bar=False)
                 except ValueError:
@@ -157,18 +157,13 @@ class SclerosisModule(BaseModule):
                 side_metrics = per_class_metrics(
                     targets[mask],
                     preds[mask],
-                    class_names=["none", "mild", "significant"],
+                    class_names=self.class_names,
                 )
                 self.log(f"val/f1_macro_{side_name}", side_metrics["f1_macro"], prog_bar=False)
                 self.log(f"val/accuracy_{side_name}", side_metrics["accuracy"], prog_bar=False)
                 if len(np.unique(targets[mask])) > 1:
                     try:
-                        side_auc = roc_auc_score(
-                            targets[mask],
-                            probs[mask],
-                            multi_class="ovr",
-                            average="macro",
-                        )
+                        side_auc = self._roc_auc(targets[mask], probs[mask])
                         self.log(f"val/auc_macro_{side_name}", float(side_auc), prog_bar=False)
                     except ValueError:
                         pass
@@ -178,3 +173,8 @@ class SclerosisModule(BaseModule):
         self.val_probs.clear()
         self.val_side_ids.clear()
         super().on_validation_epoch_end()
+
+    def _roc_auc(self, targets: np.ndarray, probs: np.ndarray) -> float:
+        if self.num_classes == 2:
+            return float(roc_auc_score(targets, probs[:, 1]))
+        return float(roc_auc_score(targets, probs, multi_class="ovr", average="macro"))

@@ -308,6 +308,8 @@ OSTEOPHYTE_RESULTS_DIR="${OSTEOPHYTE_RESULTS_DIR:-${ROOT_DIR}/results/osteophyte
 SCLEROSIS_MANUAL_DIR="${SCLEROSIS_MANUAL_DIR:-${ROOT_DIR}/features/sclerosis_manual_teacher}"
 SCLEROSIS_EXPANDED_DIR="${SCLEROSIS_EXPANDED_DIR:-${ROOT_DIR}/features/sclerosis_expanded_teacher}"
 SCLEROSIS_FINAL_DIR="${SCLEROSIS_FINAL_DIR:-${ROOT_DIR}/features/sclerosis}"
+SCLEROSIS_LABEL_SCHEME="${SCLEROSIS_LABEL_SCHEME:-severity}"
+SCLEROSIS_CHECKPOINT_DIR="${SCLEROSIS_CHECKPOINT_DIR:-${ROOT_DIR}/checkpoints}"
 OSTEOPHYTE_WARM_START_CHECKPOINT=""
 SCLEROSIS_TEACHER_CHECKPOINT=""
 
@@ -336,6 +338,8 @@ echo "Python: ${PYTHON_BIN}"
 echo "Data root: ${DATA_ROOT}"
 echo "Annotation package image copies: ${ANNOTATION_PACKAGE_COPY_IMAGES}"
 echo "JSN self-training branch: ${ENABLE_JSN_SELF_TRAINING}"
+echo "Sclerosis label scheme: ${SCLEROSIS_LABEL_SCHEME}"
+echo "Sclerosis checkpoint root: ${SCLEROSIS_CHECKPOINT_DIR}"
 echo
 
 if [[ "${OSTEOPHYTE_DISABLE_WARM_START:-0}" != "1" ]]; then
@@ -350,7 +354,7 @@ if [[ "${OSTEOPHYTE_DISABLE_WARM_START:-0}" != "1" ]]; then
 fi
 
 echo "Resolving sclerosis teacher checkpoint..."
-if SCLEROSIS_TEACHER_CHECKPOINT="$(resolve_optional_sclerosis_teacher_checkpoint "${ROOT_DIR}/checkpoints/sclerosis")"; then
+if SCLEROSIS_TEACHER_CHECKPOINT="$(resolve_optional_sclerosis_teacher_checkpoint "${SCLEROSIS_CHECKPOINT_DIR}/sclerosis")"; then
   echo "Using pinned sclerosis teacher checkpoint: ${SCLEROSIS_TEACHER_CHECKPOINT}"
   echo
 else
@@ -544,6 +548,7 @@ SCLEROSIS_MODEL_ARGS=(
 )
 
 SCLEROSIS_TRAINING_ARGS=(
+  "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}"
   training.scheduler=cosine
   training.learning_rate=3.0e-5
   training.weight_decay=1.0e-4
@@ -613,6 +618,7 @@ run_step 17 "Training sclerosis classifier (manual teacher)" \
   "${ROOT_DIR}/scripts/train_sclerosis.py" \
   training.label_mode=manual \
   sclerosis_output_dir="${SCLEROSIS_MANUAL_DIR}" \
+  checkpoint_dir="${SCLEROSIS_CHECKPOINT_DIR}" \
   "${SCLEROSIS_MODEL_ARGS[@]}" \
   "${SCLEROSIS_DEVPOOL_ARGS[@]}" \
   "${SCLEROSIS_TRAINING_ARGS[@]}" \
@@ -692,6 +698,7 @@ run_step 21 "Training sclerosis classifier (expanded manual + high-confidence)" 
   "${ROOT_DIR}/scripts/train_sclerosis.py" \
   training.label_mode=expanded \
   sclerosis_output_dir="${SCLEROSIS_EXPANDED_DIR}" \
+  checkpoint_dir="${SCLEROSIS_CHECKPOINT_DIR}" \
   "${SCLEROSIS_MODEL_ARGS[@]}" \
   "${SCLEROSIS_DEVPOOL_ARGS[@]}" \
   "${SCLEROSIS_TRAINING_ARGS[@]}" \
@@ -753,7 +760,9 @@ run_step 28 "Evaluating osteophyte grader (manual-label main framework)" \
 run_step 29 "Evaluating sclerosis classifier" \
   "${ROOT_DIR}/scripts/evaluate_sclerosis.py" \
   training.label_mode=manual \
+  "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}" \
   sclerosis_output_dir="${SCLEROSIS_FINAL_DIR}" \
+  checkpoint_dir="${SCLEROSIS_CHECKPOINT_DIR}" \
   "${SCLEROSIS_MODEL_ARGS[@]}"
 
 run_step 30 "Running KL feature baselines" \

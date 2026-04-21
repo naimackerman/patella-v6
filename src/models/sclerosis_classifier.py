@@ -11,7 +11,7 @@ class SclerosisClassifier(nn.Module):
 
     CNN branch: EfficientNet-B0 on subchondral ROI patches -> 1280-dim
     Texture branch: MLP on precomputed LBP/GLCM/FD/intensity features -> 64-dim
-    Fusion: concatenation + MLP -> 3-class output (none/mild/significant)
+    Fusion: concatenation + MLP -> configurable sclerosis class output
     """
 
     def __init__(self, cfg: DictConfig):
@@ -98,7 +98,7 @@ class SclerosisClassifier(nn.Module):
             side_ids: (B,) compartment ids (0=medial, 1=lateral).
 
         Returns:
-            (B, 3) logits for sclerosis grades.
+            (B, num_classes) logits for sclerosis grades.
         """
         features = []
         if self.cnn is not None:

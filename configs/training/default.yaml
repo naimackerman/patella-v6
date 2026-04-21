@@ -85,6 +85,7 @@ sclerosis_primary_monitor: "val_f1_macro"
 sclerosis_primary_mode: "max"
 sclerosis_secondary_monitor: "val_auc_macro"
 sclerosis_secondary_mode: "max"
+sclerosis_label_scheme: "severity"
 sclerosis_strategy: "multitask_heads"
 sclerosis_backbone_freeze_epochs: 0
 sclerosis_sampling:

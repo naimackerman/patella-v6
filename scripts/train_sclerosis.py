@@ -22,6 +22,11 @@ from src.utils.lightning import build_loggers
 from src.utils.seed import seed_everything
 from src.utils.annotation_confidence import confidence_at_least, confidence_weight
 from src.utils.feature_scaling import fit_standardizer, save_standardizer, transform_with_standardizer
+from src.utils.sclerosis_labels import (
+    apply_sclerosis_label_scheme_to_cfg,
+    map_sclerosis_grades,
+    sclerosis_class_names,
+)
 
 SEPARATE_STRATEGIES = {"separate", "separate_by_side", "per_side", "side_specific"}
 SHARED_STRATEGIES = {"shared", "shared_single_head", "shared_classifier", "single_head"}
@@ -63,6 +68,9 @@ class FreezeBackboneCallback(pl.Callback):
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     seed_everything(cfg.seed)
+    label_scheme = str(getattr(cfg.training, "sclerosis_label_scheme", "severity"))
+    cfg = apply_sclerosis_label_scheme_to_cfg(cfg, label_scheme)
+    class_names = sclerosis_class_names(label_scheme)
 
     feature_dir = Path(cfg.feature_dir)
     scl_dir = Path(str(getattr(cfg, "sclerosis_output_dir", feature_dir / "sclerosis")))
@@ -87,8 +95,8 @@ def main(cfg: DictConfig):
     }
 
     # Load precomputed ROI paths, texture features, and labels
-    train_data = np.load(scl_dir / "train_sclerosis_data.npz", allow_pickle=True)
-    val_data = np.load(scl_dir / "val_sclerosis_data.npz", allow_pickle=True)
+    train_data = _apply_label_scheme_to_data(np.load(scl_dir / "train_sclerosis_data.npz", allow_pickle=True), label_scheme)
+    val_data = _apply_label_scheme_to_data(np.load(scl_dir / "val_sclerosis_data.npz", allow_pickle=True), label_scheme)
     dev_pool_cfg = getattr(cfg.training, "sclerosis_dev_pool", {})
     use_dev_pool = bool(getattr(dev_pool_cfg, "enabled", False))
 
@@ -136,6 +144,7 @@ def main(cfg: DictConfig):
         raise ValueError(f"No sclerosis samples available for label_mode={label_mode}")
 
     print(f"Sclerosis label mode: {label_mode}")
+    print(f"Sclerosis label scheme: {cfg.training.sclerosis_label_scheme} ({class_names})")
     if use_dev_pool:
         print(
             f"Sclerosis dev pool enabled: combined reviewed development pool with "
@@ -395,6 +404,13 @@ def _extract_side_ids(data) -> np.ndarray:
 
 def _data_has_key(data, key: str) -> bool:
     return key in data.keys() if isinstance(data, dict) else key in data.files
+
+
+def _apply_label_scheme_to_data(data, label_scheme: str) -> dict[str, np.ndarray]:
+    keys = data.keys() if isinstance(data, dict) else data.files
+    mapped = {key: np.asarray(data[key]) for key in keys}
+    mapped["grades"] = map_sclerosis_grades(mapped["grades"], label_scheme)
+    return mapped
 
 
 def _concat_split_data(*datas) -> dict[str, np.ndarray]:

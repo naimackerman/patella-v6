@@ -288,6 +288,15 @@ reported sclerosis classifier only if it improves over the simpler texture-only
 and CNN-only baselines. This is important because the supervised sclerosis set
 is small and sclerosis labels are visually noisier than osteophyte grades.
 
+The primary label target remains the 3-class clinical severity scheme
+(`none`, `mild`, `significant`). Because early manual-label experiments showed
+unstable 3-class separation, Stage 2C also includes an adjustable binary
+sensitivity analysis: `none` versus `present`, where `present` combines mild
+and significant sclerosis. This binary setting is configured by
+`training.sclerosis_label_scheme=binary_present`; the default
+`training.sclerosis_label_scheme=severity` preserves the original 3-class
+research target.
+
 **Sub-step 2C.1: Automatic Subchondral ROI Definition**
 
 Using the joint space segmentation from Stage 2A, define the subchondral bone region:
@@ -409,6 +418,11 @@ a reliable baseline. This reduces overfitting on the 500-image manual set and
 directly addresses failure modes where class balancing pushes the model toward
 the `significant` class while losing sensitivity for `none`.
 
+Implementation note: binary sclerosis training is not a replacement for the
+severity endpoint unless it is explicitly reported as such. It is used to test
+whether the current ROI and feature representation can reliably detect any
+sclerosis before asking the model to distinguish mild from significant disease.
+
 **Output features**:
 - `scl_grade_medial`: Sclerosis grade for medial subchondral region (0=none, 1=mild, 2=significant)
 - `scl_grade_lateral`: Sclerosis grade for lateral subchondral region
@@ -421,6 +435,9 @@ the `significant` class while losing sensitivity for `none`.
 AUC per class, confusion matrix, and correlation with KL grade (expected r ≥
 0.65). Macro-F1 and the recall of the `none` class are primary safeguards
 against a clinically unusable model that over-predicts sclerosis.
+For binary runs, report the same safeguards with binary AUC and a 2x2 confusion
+matrix, and do not compare binary macro-F1 directly against 3-class macro-F1 as
+if they were the same endpoint.
 
 ---
 

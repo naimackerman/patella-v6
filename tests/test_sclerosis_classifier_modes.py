@@ -45,6 +45,18 @@ class TestSclerosisClassifierModes(unittest.TestCase):
 
         self.assertEqual(tuple(logits.shape), (2, 3))
 
+    def test_binary_num_classes_changes_output_shape(self):
+        cfg = _base_cfg("hybrid")
+        cfg.num_classes = 2
+        model = SclerosisClassifier(cfg)
+        images = torch.zeros(2, 1, 96, 96)
+        textures = torch.zeros(2, 65)
+        side_ids = torch.tensor([0, 1])
+
+        logits = model(images, textures, side_ids)
+
+        self.assertEqual(tuple(logits.shape), (2, 2))
+
 
 if __name__ == "__main__":
     unittest.main()

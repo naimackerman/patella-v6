@@ -22,6 +22,11 @@ from src.utils.checkpoints import extract_model_state_dict, find_best_lightning_
 from src.utils.device import get_device
 from src.utils.feature_scaling import fit_standardizer, load_standardizer, transform_with_standardizer
 from src.utils.seed import seed_everything
+from src.utils.sclerosis_labels import (
+    apply_sclerosis_label_scheme_to_cfg,
+    map_sclerosis_grades,
+    sclerosis_class_names,
+)
 
 
 SIDE_NAMES = {0: "medial", 1: "lateral"}
@@ -84,14 +89,14 @@ def _resolve_checkpoint_path(cfg: DictConfig, ckpt_dir: Path) -> Path:
 
 
 def _extract_side_ids(data) -> np.ndarray:
-    if "side_ids" in data.files:
+    if _data_has_key(data, "side_ids"):
         return np.asarray(data["side_ids"], dtype=np.int64)
     image_ids = np.asarray(data["image_ids"]).astype(str)
     return np.asarray([0 if iid.endswith("_medial") else 1 for iid in image_ids], dtype=np.int64)
 
 
 def _select_indices(data, label_mode: str, allow_bootstrap_fallback: bool) -> np.ndarray:
-    if "label_sources" not in data.files:
+    if not _data_has_key(data, "label_sources"):
         if allow_bootstrap_fallback or label_mode in {"bootstrap", "all", "pseudo"}:
             return np.arange(len(data["grades"]))
         raise ValueError("Sclerosis evaluation requires label_sources metadata for manual/expanded mode.")
@@ -123,7 +128,7 @@ def _apply_confidence_policy(
     min_confidence: str,
     confidence_weights: dict[str, float],
 ) -> tuple[np.ndarray, np.ndarray]:
-    if "confidence_levels" not in data.files:
+    if not _data_has_key(data, "confidence_levels"):
         return keep, np.ones(len(keep), dtype=np.float32)
     confidences = np.asarray(data["confidence_levels"]).astype(str)
     selected = []
@@ -144,7 +149,7 @@ def _apply_roi_source_filter(
     allowed_sources,
 ) -> tuple[np.ndarray, np.ndarray]:
     allowed = [str(item).strip() for item in list(allowed_sources or []) if str(item).strip()]
-    if not allowed or "roi_sources" not in data.files:
+    if not allowed or not _data_has_key(data, "roi_sources"):
         return keep, sample_weights
 
     roi_sources = np.asarray(data["roi_sources"]).astype(str)
@@ -189,16 +194,26 @@ def _fit_texture_baseline(features: np.ndarray, labels: np.ndarray) -> LogisticR
     return model
 
 
-def _compute_metrics(targets: np.ndarray, preds: np.ndarray, probs: np.ndarray, kl_grades: np.ndarray) -> dict:
+def _compute_metrics(
+    targets: np.ndarray,
+    preds: np.ndarray,
+    probs: np.ndarray,
+    kl_grades: np.ndarray,
+    class_names: list[str],
+) -> dict:
     metrics = {
         "num_samples": int(len(targets)),
         "accuracy": float(accuracy_score(targets, preds)),
-        "confusion_matrix": confusion_matrix(targets, preds, labels=[0, 1, 2]).tolist(),
+        "confusion_matrix": confusion_matrix(targets, preds, labels=list(range(len(class_names)))).tolist(),
+        "class_names": class_names,
         "kl_correlation": _safe_correlation(preds.astype(np.float64), kl_grades.astype(np.float64)),
     }
     if len(np.unique(targets)) > 1:
         try:
-            metrics["auc_macro"] = float(roc_auc_score(targets, probs, multi_class="ovr", average="macro"))
+            if len(class_names) == 2:
+                metrics["auc_macro"] = float(roc_auc_score(targets, probs[:, 1]))
+            else:
+                metrics["auc_macro"] = float(roc_auc_score(targets, probs, multi_class="ovr", average="macro"))
         except ValueError:
             pass
     return metrics
@@ -230,9 +245,23 @@ def _collect_model_predictions(
     )
 
 
+def _data_has_key(data, key: str) -> bool:
+    return key in data.keys() if isinstance(data, dict) else key in data.files
+
+
+def _apply_label_scheme_to_data(data, label_scheme: str) -> dict[str, np.ndarray]:
+    keys = data.keys() if isinstance(data, dict) else data.files
+    mapped = {key: np.asarray(data[key]) for key in keys}
+    mapped["grades"] = map_sclerosis_grades(mapped["grades"], label_scheme)
+    return mapped
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     seed_everything(cfg.seed)
+    label_scheme = str(getattr(cfg.training, "sclerosis_label_scheme", "severity"))
+    cfg = apply_sclerosis_label_scheme_to_cfg(cfg, label_scheme)
+    class_names = sclerosis_class_names(label_scheme)
     model_cfg = _resolve_model_cfg(cfg)
     device = get_device()
 
@@ -243,6 +272,8 @@ def main(cfg: DictConfig):
     target_roi_size = int(getattr(cfg.preprocessing.sclerosis_roi, "output_size", 96))
     result = {
         "checkpoint_strategy": "separate" if separate else "shared",
+        "label_scheme": cfg.training.sclerosis_label_scheme,
+        "class_names": class_names,
         "checkpoints": {},
         "hybrid": {},
         "hybrid_by_side": {},
@@ -261,7 +292,7 @@ def main(cfg: DictConfig):
     }
 
     scl_dir = Path(str(getattr(cfg, "sclerosis_output_dir", Path(cfg.feature_dir) / "sclerosis")))
-    train_npz = np.load(scl_dir / "train_sclerosis_data.npz", allow_pickle=True)
+    train_npz = _apply_label_scheme_to_data(np.load(scl_dir / "train_sclerosis_data.npz", allow_pickle=True), label_scheme)
     train_keep = _select_indices(train_npz, label_mode, allow_bootstrap_fallback)
     train_keep, _ = _apply_confidence_policy(train_npz, train_keep, min_eval_confidence, confidence_weights)
     train_keep, _ = _apply_roi_source_filter(
@@ -320,7 +351,7 @@ def main(cfg: DictConfig):
         result["checkpoints"]["shared"] = str(ckpt_path)
 
     for split in ("val", "test"):
-        data = np.load(scl_dir / f"{split}_sclerosis_data.npz", allow_pickle=True)
+        data = _apply_label_scheme_to_data(np.load(scl_dir / f"{split}_sclerosis_data.npz", allow_pickle=True), label_scheme)
         keep = _select_indices(data, label_mode, allow_bootstrap_fallback)
         keep, sample_weights = _apply_confidence_policy(data, keep, min_eval_confidence, confidence_weights)
         keep, sample_weights = _apply_roi_source_filter(
@@ -374,7 +405,7 @@ def main(cfg: DictConfig):
                 preds, probs, targets = _collect_model_predictions(bundle["model"], dataset, device, cfg.data.num_workers)
                 base_image_ids = [str(item).rsplit("_", 1)[0] for item in data["image_ids"][side_keep]]
                 kl_grades = np.asarray([kl_lookup.get(image_id, 0) for image_id in base_image_ids], dtype=np.float64)
-                hybrid_by_side[side_name] = _compute_metrics(targets, preds, probs, kl_grades)
+                hybrid_by_side[side_name] = _compute_metrics(targets, preds, probs, kl_grades, class_names)
                 hybrid_preds_all.append(preds)
                 hybrid_probs_all.append(probs)
                 hybrid_targets_all.append(targets)
@@ -383,7 +414,7 @@ def main(cfg: DictConfig):
                 texture_input = scaled_texture
                 texture_probs = texture_models[side_name].predict_proba(texture_input)
                 texture_preds = texture_models[side_name].predict(texture_input)
-                texture_by_side[side_name] = _compute_metrics(targets, texture_preds, texture_probs, kl_grades)
+                texture_by_side[side_name] = _compute_metrics(targets, texture_preds, texture_probs, kl_grades, class_names)
                 texture_preds_all.append(texture_preds.astype(np.int64))
                 texture_probs_all.append(np.asarray(texture_probs, dtype=np.float64))
                 texture_targets_all.append(targets)
@@ -427,12 +458,14 @@ def main(cfg: DictConfig):
                         preds[mask],
                         probs[mask],
                         kl_grades[mask],
+                        class_names,
                     )
                     texture_by_side[side_name] = _compute_metrics(
                         targets[mask],
                         texture_preds[mask],
                         texture_probs[mask],
                         kl_grades[mask],
+                        class_names,
                     )
 
         if hybrid_targets_all:
@@ -441,6 +474,7 @@ def main(cfg: DictConfig):
                 np.concatenate(hybrid_preds_all),
                 np.concatenate(hybrid_probs_all),
                 np.concatenate(hybrid_kl_all),
+                class_names,
             )
         if texture_targets_all:
             result["texture_only"][split] = _compute_metrics(
@@ -448,6 +482,7 @@ def main(cfg: DictConfig):
                 np.concatenate(texture_preds_all),
                 np.concatenate(texture_probs_all),
                 np.concatenate(texture_kl_all),
+                class_names,
             )
         if hybrid_by_side:
             result["hybrid_by_side"][split] = hybrid_by_side
