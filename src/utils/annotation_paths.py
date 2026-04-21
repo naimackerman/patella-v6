@@ -8,7 +8,7 @@ import pandas as pd
 
 
 MANUAL_SOURCES = {"manual_review", "reviewed_manual", "manual"}
-EXPANDED_SOURCES = MANUAL_SOURCES | {"high_conf_model"}
+EXPANDED_SOURCES = MANUAL_SOURCES | {"high_conf_model", "kl_image_weak"}
 BOOTSTRAP_SOURCES = {
     "heuristic_image_only",
     "bootstrap_rule",

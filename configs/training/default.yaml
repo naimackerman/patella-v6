@@ -97,6 +97,10 @@ sclerosis_roi_source_filter:
   train: []
   eval: []
   pseudo: []
+sclerosis_kl_image_weak:
+  target_rows: 1500
+  include_kl2: false
+  require_image_agreement: true
 sclerosis_dev_pool:
   enabled: false
   n_splits: 5

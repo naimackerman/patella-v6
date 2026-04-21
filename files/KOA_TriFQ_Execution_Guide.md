@@ -147,6 +147,18 @@ pass `SCLEROSIS_LABEL_SCHEME=binary_present` and a separate
 SCLEROSIS_LABEL_SCHEME=binary_present SCLEROSIS_CHECKPOINT_DIR=checkpoints/sclerosis_binary_present ./scripts/run_main_study_pipeline.sh ...
 ```
 
+For a 3-class weak-supervision experiment, generate KL/image-guided sclerosis
+labels separately from the manual-label baseline:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/generate_sclerosis_kl_image_weak_labels.py training.label_mode=manual sclerosis_output_dir=features/sclerosis_manual_teacher
+```
+
+This writes `annotations/pseudo/sclerosis_labels_kl_image_weak.csv` and merges
+it into `annotations/sclerosis_labels_expanded.csv` with `label_source=kl_image_weak`.
+Use it only with `training.label_mode=expanded`; final evaluation should still
+use `training.label_mode=manual`.
+
 ## 6. Semi-Supervised Expansion
 
 After the first supervised osteophyte and sclerosis models are trained, generate high-confidence pseudo-label expansions:

@@ -423,6 +423,12 @@ severity endpoint unless it is explicitly reported as such. It is used to test
 whether the current ROI and feature representation can reliably detect any
 sclerosis before asking the model to distinguish mild from significant disease.
 
+Implementation note: KL/image-guided 3-class sclerosis labels may be used only
+as weak supervision for an ablation. These rows are marked separately as
+`kl_image_weak` and are not considered manual-reviewed clinical labels. Any
+model trained with these labels must still be evaluated against manual-review
+sclerosis labels.
+
 **Output features**:
 - `scl_grade_medial`: Sclerosis grade for medial subchondral region (0=none, 1=mild, 2=significant)
 - `scl_grade_lateral`: Sclerosis grade for lateral subchondral region
