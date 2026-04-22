@@ -11,3 +11,4 @@ outputs/
 checkpoints/
 /features/
 annotations/jsn_masks/
+annotations/local/
