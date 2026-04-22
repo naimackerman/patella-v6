@@ -1,0 +1,1 @@
+/workspace/patella-v6/checkpoints/jsn_segmenter/jsn-epoch=086-val_dice=0.9012.ckpt

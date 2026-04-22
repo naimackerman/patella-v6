@@ -1,0 +1,10 @@
+{
+  "selected": "manual",
+  "selected_checkpoint": "/workspace/patella-v6/checkpoints/jsn_segmenter/jsn-epoch=086-val_dice=0.9012.ckpt",
+  "primary_metric": "mjsw_mae",
+  "mode": "min",
+  "manual_score": 1.7019714803350288,
+  "selftrain_score": 1.7217359155551506,
+  "manual_checkpoint": "/workspace/patella-v6/checkpoints/jsn_segmenter/jsn-epoch=086-val_dice=0.9012.ckpt",
+  "selftrain_checkpoint": "/workspace/patella-v6/checkpoints/jsn_segmenter_selftrain/jsn-mjsw-epoch=005-val_mjsw_mae=1.0354.ckpt"
+}

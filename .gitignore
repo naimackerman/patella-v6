@@ -12,3 +12,4 @@ checkpoints/
 /features/
 annotations/jsn_masks/
 annotations/local/
+**/.ipynb_checkpoints/

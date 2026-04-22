@@ -1,0 +1,268 @@
+{
+  "checkpoint_strategy": "shared",
+  "label_scheme": "binary_present",
+  "class_names": [
+    "none",
+    "present"
+  ],
+  "binary_threshold": 0.4227197766304016,
+  "checkpoints": {
+    "shared": "/workspace/patella-v6/checkpoints/sclerosis_binary_texture_only/sclerosis/scl-auc-epoch=044-val_auc_macro=0.6730.ckpt"
+  },
+  "hybrid": {
+    "val": {
+      "num_samples": 150,
+      "accuracy": 0.6266666666666667,
+      "confusion_matrix": [
+        [
+          38,
+          25
+        ],
+        [
+          31,
+          56
+        ]
+      ],
+      "class_names": [
+        "none",
+        "present"
+      ],
+      "kl_correlation": 0.17025130615175,
+      "auc_macro": 0.6708629812078087
+    },
+    "test": {
+      "num_samples": 150,
+      "accuracy": 0.58,
+      "confusion_matrix": [
+        [
+          39,
+          31
+        ],
+        [
+          32,
+          48
+        ]
+      ],
+      "class_names": [
+        "none",
+        "present"
+      ],
+      "kl_correlation": 0.10385680721924981,
+      "auc_macro": 0.6114285714285714
+    }
+  },
+  "hybrid_by_side": {
+    "val": {
+      "medial": {
+        "num_samples": 75,
+        "accuracy": 0.6666666666666666,
+        "confusion_matrix": [
+          [
+            7,
+            20
+          ],
+          [
+            5,
+            43
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.18002057495577387,
+        "auc_macro": 0.7160493827160493
+      },
+      "lateral": {
+        "num_samples": 75,
+        "accuracy": 0.5866666666666667,
+        "confusion_matrix": [
+          [
+            31,
+            5
+          ],
+          [
+            26,
+            13
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.24283093212859114,
+        "auc_macro": 0.6424501424501424
+      }
+    },
+    "test": {
+      "medial": {
+        "num_samples": 75,
+        "accuracy": 0.6,
+        "confusion_matrix": [
+          [
+            5,
+            24
+          ],
+          [
+            6,
+            40
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.026650089544451323,
+        "auc_macro": 0.5697151424287855
+      },
+      "lateral": {
+        "num_samples": 75,
+        "accuracy": 0.56,
+        "confusion_matrix": [
+          [
+            34,
+            7
+          ],
+          [
+            26,
+            8
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.2357022603955158,
+        "auc_macro": 0.5846484935437589
+      }
+    }
+  },
+  "texture_only": {
+    "val": {
+      "num_samples": 150,
+      "accuracy": 0.5933333333333334,
+      "confusion_matrix": [
+        [
+          38,
+          25
+        ],
+        [
+          36,
+          51
+        ]
+      ],
+      "class_names": [
+        "none",
+        "present"
+      ],
+      "kl_correlation": 0.08486035722053033,
+      "auc_macro": 0.625615763546798
+    },
+    "test": {
+      "num_samples": 150,
+      "accuracy": 0.54,
+      "confusion_matrix": [
+        [
+          40,
+          30
+        ],
+        [
+          39,
+          41
+        ]
+      ],
+      "class_names": [
+        "none",
+        "present"
+      ],
+      "kl_correlation": 0.08497375136120422,
+      "auc_macro": 0.55375
+    }
+  },
+  "texture_only_by_side": {
+    "val": {
+      "medial": {
+        "num_samples": 75,
+        "accuracy": 0.6,
+        "confusion_matrix": [
+          [
+            8,
+            19
+          ],
+          [
+            11,
+            37
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.1950997431429269,
+        "auc_macro": 0.5933641975308642
+      },
+      "lateral": {
+        "num_samples": 75,
+        "accuracy": 0.5866666666666667,
+        "confusion_matrix": [
+          [
+            30,
+            6
+          ],
+          [
+            25,
+            14
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 3.5505051624686374e-17,
+        "auc_macro": 0.6296296296296297
+      }
+    },
+    "test": {
+      "medial": {
+        "num_samples": 75,
+        "accuracy": 0.56,
+        "confusion_matrix": [
+          [
+            8,
+            21
+          ],
+          [
+            12,
+            34
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.021320071635561027,
+        "auc_macro": 0.5817091454272864
+      },
+      "lateral": {
+        "num_samples": 75,
+        "accuracy": 0.52,
+        "confusion_matrix": [
+          [
+            32,
+            9
+          ],
+          [
+            27,
+            7
+          ]
+        ],
+        "class_names": [
+          "none",
+          "present"
+        ],
+        "kl_correlation": 0.18411492357966486,
+        "auc_macro": 0.4296987087517934
+      }
+    }
+  }
+}
