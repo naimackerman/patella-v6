@@ -22,6 +22,7 @@ class FeatureAggregator:
     def __init__(self):
         self.train_mean = None
         self.train_std = None
+        self.train_median = None
 
     def jsn_to_vector(self, jsn: Dict) -> np.ndarray:
         """Convert JSN feature dict to 22-dim vector."""
@@ -93,6 +94,7 @@ class FeatureAggregator:
         self.train_mean = feature_matrix.mean(axis=0)
         self.train_std = feature_matrix.std(axis=0)
         self.train_std[self.train_std < 1e-8] = 1.0
+        self.train_median = np.median(feature_matrix, axis=0)
 
     def normalize(self, features: np.ndarray) -> np.ndarray:
         """Apply z-score normalization using training statistics."""
