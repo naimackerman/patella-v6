@@ -101,6 +101,9 @@ sclerosis_kl_image_weak:
   target_rows: 1500
   include_kl2: false
   require_image_agreement: true
+sclerosis_texture_benchmark:
+  threshold_objective: "f1_macro"
+  add_side_feature: true
 sclerosis_dev_pool:
   enabled: false
   n_splits: 5
