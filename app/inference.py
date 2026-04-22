@@ -363,6 +363,8 @@ class TriFQPipeline:
 
     @staticmethod
     def _fallback_rois(image, is_left: bool, roi_strategy: str, landmark_detector):
+        from src.models.roi_detector import ROIDetector
+
         try_landmark = roi_strategy in {"auto", "landmark"}
         if try_landmark:
             try:
@@ -451,13 +453,25 @@ class TriFQPipeline:
         if self._sclerosis_model is not None:
             return self._sclerosis_model
 
-        ckpt_dir = self.checkpoint_dir / "sclerosis"
-        ckpt_path = find_best_lightning_checkpoint(ckpt_dir, monitor="val/accuracy") if ckpt_dir.exists() else None
+        checkpoint_candidates = [
+            (self.checkpoint_dir / "sclerosis_binary_texture_only" / "sclerosis", "val_auc_macro"),
+            (self.checkpoint_dir / "sclerosis" / "sclerosis", "val_auc_macro"),
+            (self.checkpoint_dir / "sclerosis", "val/accuracy"),
+            (self.checkpoint_dir / "sclerosis", "val_f1_macro"),
+        ]
+        ckpt_path = None
+        for ckpt_dir, monitor in checkpoint_candidates:
+            if not ckpt_dir.exists():
+                continue
+            ckpt_path = find_best_lightning_checkpoint(ckpt_dir, monitor=monitor)
+            if ckpt_path is not None:
+                break
         if ckpt_path is None:
             return None
 
-        model = model_cls(self._get_stage_cfg("sclerosis"))
         checkpoint = load_checkpoint(ckpt_path, map_location=self.device)
+        model_cfg = self._checkpoint_model_cfg("sclerosis", checkpoint)
+        model = model_cls(model_cfg)
         model.load_state_dict(extract_model_state_dict(checkpoint))
         model.to(self.device)
         model.eval()
@@ -482,12 +496,18 @@ class TriFQPipeline:
             return self._hybrid_model
 
         ckpt_dir = self.checkpoint_dir / "kl_hybrid"
-        ckpt_path = find_best_lightning_checkpoint(ckpt_dir, monitor="val/qwk") if ckpt_dir.exists() else None
+        ckpt_path = None
+        if ckpt_dir.exists():
+            for monitor in ("val_qwk", "val/qwk"):
+                ckpt_path = find_best_lightning_checkpoint(ckpt_dir, monitor=monitor)
+                if ckpt_path is not None:
+                    break
         if ckpt_path is None:
             return None
 
-        model = model_cls(self._get_stage_cfg("hybrid"))
         checkpoint = load_checkpoint(ckpt_path, map_location=self.device)
+        model_cfg = self._checkpoint_model_cfg("hybrid", checkpoint)
+        model = model_cls(model_cfg)
         model.load_state_dict(extract_model_state_dict(checkpoint))
         model.to(self.device)
         model.eval()
@@ -571,3 +591,12 @@ class TriFQPipeline:
         if hasattr(self.config, "model"):
             return self.config.model
         raise AttributeError(f"Missing model configuration for stage: {stage_name}")
+
+    def _checkpoint_model_cfg(self, stage_name: str, checkpoint: dict):
+        cfg = OmegaConf.create(OmegaConf.to_container(self._get_stage_cfg(stage_name), resolve=True))
+        checkpoint_model_cfg = checkpoint.get("hyper_parameters", {}).get("model")
+        if checkpoint_model_cfg:
+            cfg = OmegaConf.merge(cfg, checkpoint_model_cfg)
+        if "pretrained" in cfg:
+            cfg.pretrained = False
+        return cfg

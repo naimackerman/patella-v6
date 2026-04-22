@@ -274,6 +274,7 @@ def _build_plots(report_dir: Path, run_root: Path) -> None:
         "shap_importance.png",
         "shap_waterfall_sample.png",
     ]:
+        _copy_if_exists(result_root / name, report_dir / name)
         _copy_if_exists(result_root / "path_a" / name, report_dir / name)
         _copy_if_exists(result_root / "pipeline_evaluation" / name, report_dir / name)
 
