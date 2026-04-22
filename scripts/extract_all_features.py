@@ -200,6 +200,13 @@ def _load_osteophyte(
 
 def _fit_lbp_pca(aggregator: FeatureAggregator, lbp_maps: dict, output_dir: Path):
     """Fit LBP PCA from training histograms and save parameters."""
+    if not all(hasattr(aggregator, name) for name in ("fit_lbp_pca", "save_lbp_pca", "load_lbp_pca")):
+        print(
+            "FeatureAggregator does not expose LBP PCA methods; "
+            "skipping raw LBP PCA and preserving the fixed 50-dim feature contract."
+        )
+        return
+
     train_lbp = lbp_maps.get("train", {})
     if not train_lbp:
         print("Warning: no LBP histograms found for training set, skipping PCA fit")
