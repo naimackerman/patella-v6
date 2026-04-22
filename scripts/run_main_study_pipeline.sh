@@ -180,6 +180,8 @@ resolve_optional_osteophyte_repro_checkpoint() {
 
 resolve_optional_sclerosis_teacher_checkpoint() {
   local checkpoint_dir="$1"
+  local checkpoint_monitor="${SCLEROSIS_CHECKPOINT_MONITOR:-val_f1_macro}"
+  local checkpoint_mode="${SCLEROSIS_CHECKPOINT_MODE:-max}"
   if [[ -n "${SCLEROSIS_TEACHER_CKPT:-}" ]]; then
     if [[ -f "${SCLEROSIS_TEACHER_CKPT}" ]]; then
       echo "${SCLEROSIS_TEACHER_CKPT}"
@@ -190,9 +192,15 @@ resolve_optional_sclerosis_teacher_checkpoint() {
   fi
 
   local resolved
-  resolved="$("${PYTHON_BIN}" -c 'from pathlib import Path; import sys; sys.path.insert(0, sys.argv[2]); from src.utils.checkpoints import find_best_lightning_checkpoint; p = find_best_lightning_checkpoint(Path(sys.argv[1]), pattern="scl-*.ckpt", monitor="val_f1_macro", mode="max"); print("" if p is None else p)' "${checkpoint_dir}" "${ROOT_DIR}")"
+  resolved="$("${PYTHON_BIN}" -c 'from pathlib import Path; import sys; sys.path.insert(0, sys.argv[4]); from src.utils.checkpoints import find_best_lightning_checkpoint; p = find_best_lightning_checkpoint(Path(sys.argv[1]), pattern="scl-*.ckpt", monitor=sys.argv[2], mode=sys.argv[3]); print("" if p is None else p)' "${checkpoint_dir}" "${checkpoint_monitor}" "${checkpoint_mode}" "${ROOT_DIR}")"
   if [[ -n "${resolved}" && -f "${resolved}" ]]; then
     echo "${resolved}"
+    return 0
+  fi
+
+  local preferred_binary="${checkpoint_dir}/scl-auc-epoch=044-val_auc_macro=0.6730.ckpt"
+  if [[ "${SCLEROSIS_LABEL_SCHEME:-}" == "binary_present" && -f "${preferred_binary}" ]]; then
+    echo "${preferred_binary}"
     return 0
   fi
 
@@ -308,10 +316,64 @@ OSTEOPHYTE_RESULTS_DIR="${OSTEOPHYTE_RESULTS_DIR:-${ROOT_DIR}/results/osteophyte
 SCLEROSIS_MANUAL_DIR="${SCLEROSIS_MANUAL_DIR:-${ROOT_DIR}/features/sclerosis_manual_teacher}"
 SCLEROSIS_EXPANDED_DIR="${SCLEROSIS_EXPANDED_DIR:-${ROOT_DIR}/features/sclerosis_expanded_teacher}"
 SCLEROSIS_FINAL_DIR="${SCLEROSIS_FINAL_DIR:-${ROOT_DIR}/features/sclerosis}"
+SCLEROSIS_STANDARDIZER_DIR="${SCLEROSIS_STANDARDIZER_DIR:-}"
 SCLEROSIS_LABEL_SCHEME="${SCLEROSIS_LABEL_SCHEME:-severity}"
-SCLEROSIS_CHECKPOINT_DIR="${SCLEROSIS_CHECKPOINT_DIR:-${ROOT_DIR}/checkpoints}"
+SCLEROSIS_BINARY_THRESHOLD="${SCLEROSIS_BINARY_THRESHOLD:-}"
+SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL="${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL:-}"
+SCLEROSIS_FORCE_MODEL_PREDICTIONS="${SCLEROSIS_FORCE_MODEL_PREDICTIONS:-}"
+SCLEROSIS_CHECKPOINT_DIR="${SCLEROSIS_CHECKPOINT_DIR:-}"
+SCLEROSIS_CHECKPOINT_MONITOR="${SCLEROSIS_CHECKPOINT_MONITOR:-}"
+SCLEROSIS_CHECKPOINT_MODE="${SCLEROSIS_CHECKPOINT_MODE:-max}"
+SCLEROSIS_INPUT_MODE="${SCLEROSIS_INPUT_MODE:-}"
+SCLEROSIS_STRATEGY="${SCLEROSIS_STRATEGY:-}"
+SCLEROSIS_FINAL_LABEL_MODE="${SCLEROSIS_FINAL_LABEL_MODE:-}"
+SCLEROSIS_PSEUDO_CONFIDENCE="${SCLEROSIS_PSEUDO_CONFIDENCE:-0.90}"
+SCLEROSIS_PSEUDO_MIN_CONFIDENCE="${SCLEROSIS_PSEUDO_MIN_CONFIDENCE:-0.75}"
+SCLEROSIS_PSEUDO_TARGET_ROWS="${SCLEROSIS_PSEUDO_TARGET_ROWS:-250}"
+SCLEROSIS_PSEUDO_WEIGHT="${SCLEROSIS_PSEUDO_WEIGHT:-0.35}"
+SCLEROSIS_PSEUDO_TEACHER_CKPT="${SCLEROSIS_PSEUDO_TEACHER_CKPT:-}"
+SCLEROSIS_EVAL_DIR="${SCLEROSIS_EVAL_DIR:-}"
 OSTEOPHYTE_WARM_START_CHECKPOINT=""
 SCLEROSIS_TEACHER_CHECKPOINT=""
+
+if [[ -z "${SCLEROSIS_INPUT_MODE}" ]]; then
+  if [[ "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
+    SCLEROSIS_INPUT_MODE="texture_only"
+  else
+    SCLEROSIS_INPUT_MODE="hybrid"
+  fi
+fi
+
+if [[ -z "${SCLEROSIS_STRATEGY}" ]]; then
+  if [[ "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
+    SCLEROSIS_STRATEGY="shared"
+  else
+    SCLEROSIS_STRATEGY="multitask_heads"
+  fi
+fi
+
+if [[ -z "${SCLEROSIS_CHECKPOINT_DIR}" ]]; then
+  if [[ "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
+    SCLEROSIS_CHECKPOINT_DIR="${ROOT_DIR}/checkpoints/sclerosis_binary_texture_only"
+  else
+    SCLEROSIS_CHECKPOINT_DIR="${ROOT_DIR}/checkpoints"
+  fi
+fi
+
+if [[ "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
+  SCLEROSIS_BINARY_THRESHOLD="${SCLEROSIS_BINARY_THRESHOLD:-0.4227197766304016}"
+  SCLEROSIS_STANDARDIZER_DIR="${SCLEROSIS_STANDARDIZER_DIR:-${SCLEROSIS_MANUAL_DIR}}"
+  SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL="${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL:-1}"
+  SCLEROSIS_FORCE_MODEL_PREDICTIONS="${SCLEROSIS_FORCE_MODEL_PREDICTIONS:-1}"
+  SCLEROSIS_FINAL_LABEL_MODE="${SCLEROSIS_FINAL_LABEL_MODE:-manual}"
+  SCLEROSIS_CHECKPOINT_MONITOR="${SCLEROSIS_CHECKPOINT_MONITOR:-val_auc_macro}"
+else
+  SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL="${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL:-0}"
+  SCLEROSIS_FORCE_MODEL_PREDICTIONS="${SCLEROSIS_FORCE_MODEL_PREDICTIONS:-0}"
+  SCLEROSIS_FINAL_LABEL_MODE="${SCLEROSIS_FINAL_LABEL_MODE:-expanded}"
+  SCLEROSIS_CHECKPOINT_MONITOR="${SCLEROSIS_CHECKPOINT_MONITOR:-val_f1_macro}"
+fi
+SCLEROSIS_EVAL_DIR="${SCLEROSIS_EVAL_DIR:-${SCLEROSIS_STANDARDIZER_DIR:-${SCLEROSIS_MANUAL_DIR}}}"
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then
   echo "Python interpreter is not executable: ${PYTHON_BIN}" >&2
@@ -339,7 +401,16 @@ echo "Data root: ${DATA_ROOT}"
 echo "Annotation package image copies: ${ANNOTATION_PACKAGE_COPY_IMAGES}"
 echo "JSN self-training branch: ${ENABLE_JSN_SELF_TRAINING}"
 echo "Sclerosis label scheme: ${SCLEROSIS_LABEL_SCHEME}"
+echo "Sclerosis input mode: ${SCLEROSIS_INPUT_MODE}"
+echo "Sclerosis strategy: ${SCLEROSIS_STRATEGY}"
+echo "Sclerosis binary threshold: ${SCLEROSIS_BINARY_THRESHOLD:-argmax/default}"
+echo "Sclerosis standardizer dir: ${SCLEROSIS_STANDARDIZER_DIR:-same as output dir}"
 echo "Sclerosis checkpoint root: ${SCLEROSIS_CHECKPOINT_DIR}"
+echo "Sclerosis checkpoint monitor: ${SCLEROSIS_CHECKPOINT_MONITOR} (${SCLEROSIS_CHECKPOINT_MODE})"
+echo "Sclerosis final label mode: ${SCLEROSIS_FINAL_LABEL_MODE}"
+echo "Sclerosis eval feature dir: ${SCLEROSIS_EVAL_DIR}"
+echo "Sclerosis pseudo confidence: ${SCLEROSIS_PSEUDO_CONFIDENCE} (min ${SCLEROSIS_PSEUDO_MIN_CONFIDENCE}, target rows ${SCLEROSIS_PSEUDO_TARGET_ROWS})"
+echo "Sclerosis pseudo source weight: ${SCLEROSIS_PSEUDO_WEIGHT}"
 echo
 
 if [[ "${OSTEOPHYTE_DISABLE_WARM_START:-0}" != "1" ]]; then
@@ -355,11 +426,19 @@ fi
 
 echo "Resolving sclerosis teacher checkpoint..."
 if SCLEROSIS_TEACHER_CHECKPOINT="$(resolve_optional_sclerosis_teacher_checkpoint "${SCLEROSIS_CHECKPOINT_DIR}/sclerosis")"; then
-  echo "Using pinned sclerosis teacher checkpoint: ${SCLEROSIS_TEACHER_CHECKPOINT}"
+  if [[ -n "${SCLEROSIS_TEACHER_CKPT:-}" ]]; then
+    echo "Using pinned sclerosis teacher checkpoint: ${SCLEROSIS_TEACHER_CHECKPOINT}"
+  else
+    echo "Resolved sclerosis checkpoint for reference: ${SCLEROSIS_TEACHER_CHECKPOINT}"
+    echo "Final extraction will re-resolve the best checkpoint at runtime unless SCLEROSIS_TEACHER_CKPT is set."
+  fi
   echo
 else
   echo "No pinned sclerosis teacher checkpoint resolved; stages 18, 20, and 23 will auto-pick from checkpoints."
   echo
+fi
+if [[ -z "${SCLEROSIS_PSEUDO_TEACHER_CKPT}" && -n "${SCLEROSIS_TEACHER_CHECKPOINT}" ]]; then
+  SCLEROSIS_PSEUDO_TEACHER_CKPT="${SCLEROSIS_TEACHER_CHECKPOINT}"
 fi
 
 run_step 1 "Cleaning numbered duplicate files" \
@@ -540,8 +619,8 @@ fi
 
 SCLEROSIS_MODEL_ARGS=(
   +model=sclerosis_hybrid
-  training.sclerosis_strategy=multitask_heads
-  model.input_mode=hybrid
+  "training.sclerosis_strategy=${SCLEROSIS_STRATEGY}"
+  "model.input_mode=${SCLEROSIS_INPUT_MODE}"
   model.use_side_specific_heads=false
   model.dropout_cnn=0.3
   model.dropout_fusion=0.4
@@ -550,16 +629,29 @@ SCLEROSIS_MODEL_ARGS=(
 SCLEROSIS_TRAINING_ARGS=(
   "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}"
   training.scheduler=cosine
-  training.learning_rate=3.0e-5
   training.weight_decay=1.0e-4
   training.early_stopping.patience=20
   training.accumulate_grad_batches=4
   training.log_every_n_steps=5
   training.sclerosis_backbone_freeze_epochs=0
-  training.sclerosis_sampling.multiplier_power=0.75
-  training.sclerosis_sampling.max_weight_ratio_to_median=2.0
-  training.sclerosis_ordinal_weight=0.1
 )
+if [[ "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
+  SCLEROSIS_TRAINING_ARGS+=(
+    training.learning_rate=1.0e-4
+    training.max_epochs=100
+    training.sclerosis_use_ordinal_loss=false
+    training.sclerosis_sampling.multiplier_power=0.5
+    training.sclerosis_sampling.max_weight_ratio_to_median=1.5
+    "training.sclerosis_source_weights.high_conf_model=${SCLEROSIS_PSEUDO_WEIGHT}"
+  )
+else
+  SCLEROSIS_TRAINING_ARGS+=(
+    training.learning_rate=3.0e-5
+    training.sclerosis_sampling.multiplier_power=0.75
+    training.sclerosis_sampling.max_weight_ratio_to_median=2.0
+    training.sclerosis_ordinal_weight=0.1
+  )
+fi
 
 SCLEROSIS_DEVPOOL_ARGS=(
   training.sclerosis_dev_pool.enabled=true
@@ -573,20 +665,55 @@ SCLEROSIS_STAGE17_TUNED_ARGS=(
 )
 
 SCLEROSIS_PSEUDO_ARGS=(
+  "training.sclerosis_primary_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}"
+  "training.sclerosis_primary_mode=${SCLEROSIS_CHECKPOINT_MODE}"
   training.pseudo_confidence_threshold_osteophyte=0.90
-  training.pseudo_confidence_threshold_sclerosis=0.90
+  "training.pseudo_confidence_threshold_sclerosis=${SCLEROSIS_PSEUDO_CONFIDENCE}"
+  "training.pseudo_confidence_threshold_sclerosis_min=${SCLEROSIS_PSEUDO_MIN_CONFIDENCE}"
+  "training.pseudo_target_rows_sclerosis=${SCLEROSIS_PSEUDO_TARGET_ROWS}"
   "training.sclerosis_roi_source_filter.pseudo=[jsn_guided]"
 )
-if [[ -n "${SCLEROSIS_TEACHER_CHECKPOINT}" ]]; then
+if [[ -n "${SCLEROSIS_BINARY_THRESHOLD}" ]]; then
   SCLEROSIS_PSEUDO_ARGS+=(
+    "training.sclerosis_binary_threshold=${SCLEROSIS_BINARY_THRESHOLD}"
+  )
+fi
+if [[ -n "${SCLEROSIS_PSEUDO_TEACHER_CKPT}" ]]; then
+  SCLEROSIS_PSEUDO_ARGS+=(
+    "checkpoint_path='${SCLEROSIS_PSEUDO_TEACHER_CKPT}'"
+  )
+fi
+
+SCLEROSIS_EXTRACTOR_TEACHER_ARGS=(
+  "checkpoint_dir=${SCLEROSIS_CHECKPOINT_DIR}"
+  "checkpoint_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}"
+  "checkpoint_mode=${SCLEROSIS_CHECKPOINT_MODE}"
+)
+if [[ -n "${SCLEROSIS_TEACHER_CKPT:-}" && -n "${SCLEROSIS_TEACHER_CHECKPOINT}" ]]; then
+  SCLEROSIS_EXTRACTOR_TEACHER_ARGS+=(
     "checkpoint_path='${SCLEROSIS_TEACHER_CHECKPOINT}'"
   )
 fi
 
-SCLEROSIS_EXTRACTOR_TEACHER_ARGS=()
-if [[ -n "${SCLEROSIS_TEACHER_CHECKPOINT}" ]]; then
-  SCLEROSIS_EXTRACTOR_TEACHER_ARGS+=(
-    "checkpoint_path='${SCLEROSIS_TEACHER_CHECKPOINT}'"
+SCLEROSIS_FINAL_EXTRACTOR_ARGS=("${SCLEROSIS_EXTRACTOR_TEACHER_ARGS[@]}")
+if [[ -n "${SCLEROSIS_BINARY_THRESHOLD}" ]]; then
+  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+    "training.sclerosis_binary_threshold=${SCLEROSIS_BINARY_THRESHOLD}"
+  )
+fi
+if [[ -n "${SCLEROSIS_STANDARDIZER_DIR}" ]]; then
+  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+    "sclerosis_standardizer_dir=${SCLEROSIS_STANDARDIZER_DIR}"
+  )
+fi
+if [[ "${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL}" == "1" ]]; then
+  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+    training.sclerosis_apply_classifier_in_manual=true
+  )
+fi
+if [[ "${SCLEROSIS_FORCE_MODEL_PREDICTIONS}" == "1" ]]; then
+  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+    training.sclerosis_force_model_predictions=true
   )
 fi
 
@@ -724,9 +851,9 @@ else
   echo "[23/${TOTAL_STEPS}] Re-extracting sclerosis features with trained classifier"
   "${PYTHON_BIN}" \
     "${ROOT_DIR}/scripts/extract_sclerosis_features.py" \
-    training.label_mode=expanded \
+    "training.label_mode=${SCLEROSIS_FINAL_LABEL_MODE}" \
     sclerosis_output_dir="${SCLEROSIS_FINAL_DIR}" \
-    "${SCLEROSIS_EXTRACTOR_TEACHER_ARGS[@]}" \
+    "${SCLEROSIS_FINAL_EXTRACTOR_ARGS[@]}" \
     "${SCLEROSIS_MODEL_ARGS[@]}"
   echo
 fi
@@ -761,8 +888,10 @@ run_step 29 "Evaluating sclerosis classifier" \
   "${ROOT_DIR}/scripts/evaluate_sclerosis.py" \
   training.label_mode=manual \
   "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}" \
-  sclerosis_output_dir="${SCLEROSIS_FINAL_DIR}" \
+  sclerosis_output_dir="${SCLEROSIS_EVAL_DIR}" \
   checkpoint_dir="${SCLEROSIS_CHECKPOINT_DIR}" \
+  "checkpoint_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}" \
+  "checkpoint_mode=${SCLEROSIS_CHECKPOINT_MODE}" \
   "${SCLEROSIS_MODEL_ARGS[@]}"
 
 run_step 30 "Running KL feature baselines" \

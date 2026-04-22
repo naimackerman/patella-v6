@@ -86,11 +86,19 @@ sclerosis_primary_mode: "max"
 sclerosis_secondary_monitor: "val_auc_macro"
 sclerosis_secondary_mode: "max"
 sclerosis_label_scheme: "severity"
+sclerosis_binary_threshold: null
+sclerosis_apply_classifier_in_manual: false
+sclerosis_force_model_predictions: false
 sclerosis_strategy: "multitask_heads"
 sclerosis_backbone_freeze_epochs: 0
 sclerosis_sampling:
   multiplier_power: 1.0
   max_weight_ratio_to_median: 2.0
+sclerosis_source_weights:
+  high_conf_model: 0.35
+  kl_image_weak: 0.25
+  model_prediction: 0.0
+  model_prediction_thresholded: 0.0
 sclerosis_use_ordinal_loss: true
 sclerosis_ordinal_weight: 0.1
 sclerosis_roi_source_filter:

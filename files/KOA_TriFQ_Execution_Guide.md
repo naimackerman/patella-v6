@@ -159,6 +159,15 @@ it into `annotations/sclerosis_labels_expanded.csv` with `label_source=kl_image_
 Use it only with `training.label_mode=expanded`; final evaluation should still
 use `training.label_mode=manual`.
 
+For the current downstream KL pipeline, use the manual-label binary texture-only
+sclerosis checkpoint with the validation-tuned global threshold. This writes
+binary `scl_grade_medial` and `scl_grade_lateral` features (`0=none`,
+`1=present`) while preserving the continuous texture features:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/extract_sclerosis_features.py training.label_mode=manual +model=sclerosis_hybrid training.sclerosis_label_scheme=binary_present training.sclerosis_binary_threshold=0.4227197766304016 training.sclerosis_apply_classifier_in_manual=true training.sclerosis_force_model_predictions=true model.input_mode=texture_only model.use_side_specific_heads=false checkpoint_path=checkpoints/sclerosis_binary_texture_only/sclerosis/scl-auc-epoch=044-val_auc_macro=0.6730.ckpt sclerosis_standardizer_dir=features/sclerosis_manual_teacher sclerosis_output_dir=features/sclerosis
+```
+
 ## 6. Semi-Supervised Expansion
 
 After the first supervised osteophyte and sclerosis models are trained, generate high-confidence pseudo-label expansions:
@@ -186,6 +195,19 @@ PYTHONPATH=. ./.venv/bin/python scripts/extract_all_features.py
 PYTHONPATH=. ./.venv/bin/python scripts/train_kl_xgboost.py +model=xgboost
 PYTHONPATH=. ./.venv/bin/python scripts/train_kl_hybrid.py +model=convnext_hybrid
 ```
+
+For the binary sclerosis branch, keep pseudo-label fine-tuning as a separate
+experiment from the manual-only baseline. Generate binary pseudo labels with
+the manual teacher checkpoint, train the expanded model in its own checkpoint
+directory, and down-weight `high_conf_model` rows so pseudo labels add coverage
+without replacing reviewed labels:
+
+```bash
+SCLEROSIS_LABEL_SCHEME=binary_present SCLEROSIS_CHECKPOINT_DIR=checkpoints/sclerosis_binary_texture_pseudo SCLEROSIS_PSEUDO_TEACHER_CKPT=checkpoints/sclerosis_binary_texture_only/sclerosis/scl-auc-epoch=044-val_auc_macro=0.6730.ckpt SCLEROSIS_STANDARDIZER_DIR=features/sclerosis_expanded_teacher SCLEROSIS_EVAL_DIR=features/sclerosis_expanded_teacher SCLEROSIS_PSEUDO_TARGET_ROWS=4000 SCLEROSIS_PSEUDO_MIN_CONFIDENCE=0.75 SCLEROSIS_PSEUDO_WEIGHT=0.35 ./scripts/run_main_study_pipeline.sh --skip-stages 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,22,24,25,26,27,28,30,31,32,33,34
+```
+
+Accept this pseudo-fine-tuned branch only if manual-label validation/test
+metrics improve over the manual binary texture-only baseline.
 
 ## 7. Evaluation
 

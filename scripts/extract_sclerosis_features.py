@@ -27,6 +27,7 @@ from src.utils.checkpoints import extract_model_state_dict, find_best_lightning_
 from src.utils.device import get_device, clear_memory
 from src.utils.seed import seed_everything
 from src.utils.feature_scaling import load_standardizer, transform_with_standardizer
+from src.utils.sclerosis_labels import apply_sclerosis_label_scheme_to_cfg
 
 
 SEPARATE_STRATEGIES = {"separate", "separate_by_side", "per_side", "side_specific"}
@@ -134,15 +135,29 @@ def _load_classifier_entry(
     classifier.to(device)
     classifier.eval()
     texture_standardizer = load_standardizer(standardizer_path) if standardizer_path is not None else None
+    if standardizer_path is not None and texture_standardizer is None:
+        raise FileNotFoundError(
+            f"Missing sclerosis texture standardizer required for classifier inference: {standardizer_path}"
+        )
     return {
         "model": classifier,
         "standardizer": texture_standardizer,
         "checkpoint_path": str(checkpoint_path),
+        "binary_threshold": _resolve_binary_threshold(cfg),
     }
+
+
+def _resolve_binary_threshold(cfg: DictConfig) -> float | None:
+    threshold = getattr(cfg.training, "sclerosis_binary_threshold", None)
+    if threshold in (None, "", "null", "None"):
+        return None
+    return float(threshold)
 
 
 def _resolve_classifier_bundle(cfg: DictConfig, output_dir: Path, device) -> dict[str, dict]:
     checkpoint_root = Path(cfg.checkpoint_dir)
+    standardizer_root = getattr(cfg, "sclerosis_standardizer_dir", None)
+    standardizer_dir = Path(str(standardizer_root)) if standardizer_root not in (None, "", "null", "None") else output_dir
     checkpoint_path = getattr(cfg, "checkpoint_path", None)
     checkpoint_monitor = getattr(cfg, "checkpoint_monitor", None)
     if checkpoint_monitor in (None, "", "null"):
@@ -158,7 +173,7 @@ def _resolve_classifier_bundle(cfg: DictConfig, output_dir: Path, device) -> dic
             bundle["shared"] = _load_classifier_entry(
                 cfg,
                 ckpt_path,
-                output_dir / "texture_standardizer.npz",
+                standardizer_dir / "texture_standardizer.npz",
                 device,
             )
         except RuntimeError as exc:
@@ -182,7 +197,7 @@ def _resolve_classifier_bundle(cfg: DictConfig, output_dir: Path, device) -> dic
                 bundle[side_name] = _load_classifier_entry(
                     cfg,
                     ckpt_path,
-                    output_dir / f"texture_standardizer_{side_name}.npz",
+                    standardizer_dir / f"texture_standardizer_{side_name}.npz",
                     device,
                 )
             except RuntimeError as exc:
@@ -205,7 +220,7 @@ def _resolve_classifier_bundle(cfg: DictConfig, output_dir: Path, device) -> dic
         bundle["shared"] = _load_classifier_entry(
             cfg,
             ckpt_path,
-            output_dir / "texture_standardizer.npz",
+            standardizer_dir / "texture_standardizer.npz",
             device,
         )
     except RuntimeError as exc:
@@ -278,6 +293,7 @@ def _resolve_grade_metadata(
     classifier_bundle: dict[str, dict],
     transform,
     device,
+    force_model_predictions: bool = False,
 ) -> tuple[int, str, str]:
     side_id = 0 if side == "medial" else 1
     label_key = f"scl_{side}"
@@ -289,7 +305,7 @@ def _resolve_grade_metadata(
         and pd.notna(label_row[label_key])
         and str(label_row[label_key]).strip() != ""
     )
-    if has_manual_label:
+    if has_manual_label and not force_model_predictions:
         grade = int(label_row[label_key])
         label_source_value = str(label_row.get(label_source_key, label_row.get("label_source", "manual_review")))
         confidence_value = normalize_confidence(label_row.get(confidence_key, "high"))
@@ -310,8 +326,18 @@ def _resolve_grade_metadata(
         side_tensor = torch.tensor([side_id], dtype=torch.long, device=device)
         with torch.no_grad():
             logits = classifier_entry["model"](roi_tensor, tex_tensor, side_tensor)
-            grade = logits.argmax(dim=1).item()
-        return int(grade), "model_prediction", "high"
+            probs = torch.softmax(logits, dim=1).squeeze(0)
+            binary_threshold = classifier_entry.get("binary_threshold")
+            if probs.numel() == 2 and binary_threshold is not None:
+                grade = int(float(probs[1].item()) >= float(binary_threshold))
+            else:
+                grade = int(probs.argmax(dim=0).item())
+        label_source = (
+            "model_prediction_thresholded"
+            if classifier_entry.get("binary_threshold") is not None
+            else "model_prediction"
+        )
+        return int(grade), label_source, "high"
 
     feature_dict = build_sclerosis_features(
         medial_roi if side == "medial" else None,
@@ -335,6 +361,7 @@ def _append_image_records(
     device,
     progress_lookup: dict[tuple[str, str], dict[str, str]] | None = None,
     save_patches: bool = True,
+    force_model_predictions: bool = False,
 ) -> list[dict[str, object]]:
     label_row = label_map.get(image_id)
     image_level_feature_dict = build_sclerosis_features(medial_roi, lateral_roi)
@@ -374,6 +401,7 @@ def _append_image_records(
                 classifier_bundle,
                 transform,
                 device,
+                force_model_predictions=force_model_predictions,
             )
 
         state["texture_vectors"].append(np.asarray(tex_feats, dtype=np.float64))
@@ -433,6 +461,7 @@ def _restore_split_state_from_patches(
     device,
     roi_output_size: int,
     use_progress_metadata: bool = True,
+    force_model_predictions: bool = False,
 ) -> tuple[dict[str, object], dict[str, int], Path]:
     state = _empty_split_state()
     progress_path = output_dir / f"{split}_sclerosis_progress.csv"
@@ -468,6 +497,7 @@ def _restore_split_state_from_patches(
             device=device,
             progress_lookup=progress_lookup,
             save_patches=False,
+            force_model_predictions=force_model_predictions,
         )
         if has_progress_rows:
             reused_from_progress += 1
@@ -533,6 +563,8 @@ def _save_split_outputs(output_dir: Path, split: str, state: dict[str, object]) 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     seed_everything(cfg.seed)
+    label_scheme = str(getattr(cfg.training, "sclerosis_label_scheme", "severity"))
+    cfg = apply_sclerosis_label_scheme_to_cfg(cfg, label_scheme)
     device = get_device()
 
     feature_dir = Path(cfg.feature_dir)
@@ -581,13 +613,28 @@ def main(cfg: DictConfig):
     print(f"Sclerosis output dir: {output_dir}")
 
     classifier_bundle = {}
-    if str(label_mode).lower() == "manual":
+    apply_classifier_in_manual = bool(getattr(cfg.training, "sclerosis_apply_classifier_in_manual", False))
+    force_model_predictions = bool(getattr(cfg.training, "sclerosis_force_model_predictions", False))
+    if force_model_predictions and str(label_mode).lower() == "manual" and not apply_classifier_in_manual:
+        raise ValueError(
+            "training.sclerosis_force_model_predictions=true requires "
+            "training.sclerosis_apply_classifier_in_manual=true in manual mode."
+        )
+    if str(label_mode).lower() == "manual" and not apply_classifier_in_manual:
         print(
             "Manual sclerosis extraction: skipping optional classifier bundle; "
             "non-reviewed rows will keep heuristic_image_only metadata."
         )
     else:
         classifier_bundle = _resolve_classifier_bundle(cfg, output_dir, device)
+        if classifier_bundle:
+            threshold = getattr(cfg.training, "sclerosis_binary_threshold", None)
+            print(
+                "Sclerosis classifier extraction enabled "
+                f"(label_scheme={cfg.training.sclerosis_label_scheme}, binary_threshold={threshold})."
+            )
+        elif force_model_predictions:
+            raise FileNotFoundError("Model-only sclerosis extraction requested, but no classifier checkpoint was loaded.")
 
     with TimedImageReader(image_read_timeout_seconds) as image_reader:
         with open(failure_log_path, "w", newline="", encoding="utf-8") as failure_handle:
@@ -611,6 +658,7 @@ def main(cfg: DictConfig):
                     device=device,
                     roi_output_size=roi_output_size,
                     use_progress_metadata=str(label_mode).lower() != "manual",
+                    force_model_predictions=force_model_predictions,
                 )
                 processed_image_ids = state["processed_image_ids"]
                 skipped_images = 0
@@ -735,6 +783,7 @@ def main(cfg: DictConfig):
                                 device=device,
                                 progress_lookup=None,
                                 save_patches=True,
+                                force_model_predictions=force_model_predictions,
                             )
                             for row in current_progress_rows:
                                 progress_writer.writerow(row)

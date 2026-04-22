@@ -28,6 +28,7 @@ from src.utils.checkpoints import (
 from src.utils.device import get_device
 from src.utils.feature_scaling import load_standardizer, transform_with_standardizer
 from src.utils.seed import seed_everything
+from src.utils.sclerosis_labels import apply_sclerosis_label_scheme_to_cfg
 
 
 SITE_ABBREV = {
@@ -88,6 +89,13 @@ def _resolve_sclerosis_model_cfg(cfg: DictConfig) -> DictConfig:
     if "model" in cfg and _config_has_keys(cfg.model, ("cnn_backbone", "num_classes", "texture_feature_dim")):
         return cfg.model
     return OmegaConf.load(Path(__file__).resolve().parents[1] / "configs" / "model" / "sclerosis_hybrid.yaml")
+
+
+def _resolve_binary_threshold(cfg: DictConfig) -> float | None:
+    threshold = getattr(cfg.training, "sclerosis_binary_threshold", None)
+    if threshold in (None, "", "null", "None"):
+        return None
+    return float(threshold)
 
 
 def _load_manual_ids(annotation_dir: Path, stem: str) -> set[str]:
@@ -435,6 +443,7 @@ def _generate_sclerosis_pseudolabels(cfg: DictConfig, device) -> pd.DataFrame:
     )
     checkpoint_monitor = str(getattr(cfg.training, "sclerosis_primary_monitor", "val_f1_macro"))
     checkpoint_mode = str(getattr(cfg.training, "sclerosis_primary_mode", "max"))
+    binary_threshold = _resolve_binary_threshold(cfg)
     base_model_cfg = _resolve_sclerosis_model_cfg(cfg)
     print(
         f"Sclerosis pseudo-labeling: scanning {scl_npz} with {len(manual_ids)} manual IDs excluded.",
@@ -569,11 +578,18 @@ def _generate_sclerosis_pseudolabels(cfg: DictConfig, device) -> pd.DataFrame:
         with torch.no_grad():
             logits = model_entry["model"](roi_tensor, tex_tensor, side_tensor)
             probs = torch.softmax(logits, dim=1).squeeze(0)
-        conf, pred = probs.max(dim=0)
+        if probs.numel() == 2 and binary_threshold is not None:
+            present_prob = float(probs[1].item())
+            pred_value = int(present_prob >= binary_threshold)
+            conf_value = present_prob if pred_value == 1 else 1.0 - present_prob
+        else:
+            conf, pred = probs.max(dim=0)
+            pred_value = int(pred.item())
+            conf_value = float(conf.item())
         row = candidate_rows_by_image.setdefault(base_id, {})
         row[side] = {
-            "pred": int(pred.item()),
-            "confidence": float(conf.item()),
+            "pred": pred_value,
+            "confidence": conf_value,
         }
         if (row_idx + 1) % 2000 == 0:
             print(
@@ -611,6 +627,8 @@ def _generate_sclerosis_pseudolabels(cfg: DictConfig, device) -> pd.DataFrame:
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     seed_everything(cfg.seed)
+    label_scheme = str(getattr(cfg.training, "sclerosis_label_scheme", "severity"))
+    cfg = apply_sclerosis_label_scheme_to_cfg(cfg, label_scheme)
     device = get_device()
 
     _generate_osteophyte_pseudolabels(cfg, device)

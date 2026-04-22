@@ -13,6 +13,7 @@ checkpoint_dir: "${project_root}/checkpoints"
 feature_dir: "${project_root}/features"
 osteophyte_roi_dir: "${feature_dir}/rois"
 sclerosis_output_dir: "${feature_dir}/sclerosis"
+sclerosis_standardizer_dir: null
 annotation_dir: "${project_root}/annotations"
 result_dir: "${project_root}/results"
 checkpoint_path: null

@@ -112,6 +112,12 @@ def main(cfg: DictConfig):
             dev_sample_weights,
             allowed_sources=getattr(getattr(cfg.training, "sclerosis_roi_source_filter", {}), "train", []),
         )
+        dev_sample_weights = _apply_label_source_weights(
+            dev_data,
+            dev_keep,
+            dev_sample_weights,
+            source_weights=getattr(cfg.training, "sclerosis_source_weights", {}),
+        )
         train_keep, val_keep = _split_dev_pool_indices(dev_data, dev_keep, cfg.seed, dev_pool_cfg)
         train_weight_lookup = {int(idx): float(weight) for idx, weight in zip(dev_keep.tolist(), dev_sample_weights.tolist())}
         train_sample_weights = np.asarray([train_weight_lookup[int(idx)] for idx in train_keep.tolist()], dtype=np.float32)
@@ -133,6 +139,12 @@ def main(cfg: DictConfig):
             train_sample_weights,
             allowed_sources=getattr(getattr(cfg.training, "sclerosis_roi_source_filter", {}), "train", []),
         )
+        train_sample_weights = _apply_label_source_weights(
+            train_data,
+            train_keep,
+            train_sample_weights,
+            source_weights=getattr(cfg.training, "sclerosis_source_weights", {}),
+        )
         val_keep, val_sample_weights = _apply_roi_source_filter(
             val_data,
             val_keep,
@@ -153,6 +165,7 @@ def main(cfg: DictConfig):
     print(f"Train samples: {len(train_keep)} / {len(train_data['grades'])}")
     print(f"Val samples:   {len(val_keep)} / {len(val_data['grades'])}")
     print(f"Sclerosis confidence policy: train>={min_train_confidence}, eval>={min_eval_confidence}, weights={confidence_weights}")
+    print(f"Sclerosis label-source weights: {dict(getattr(cfg.training, 'sclerosis_source_weights', {}))}")
     if _data_has_key(train_data, "label_sources"):
         manual_present = pd.Series(train_data["label_sources"].astype(str)).isin(MANUAL_SOURCES).any()
         if not manual_present and label_mode in {"auto", "manual"} and allow_bootstrap_fallback:
@@ -393,6 +406,24 @@ def _apply_roi_source_filter(
     roi_sources = np.asarray(data["roi_sources"]).astype(str)
     mask = np.isin(roi_sources[keep], allowed)
     return keep[mask], sample_weights[mask]
+
+
+def _apply_label_source_weights(
+    data,
+    keep: np.ndarray,
+    sample_weights: np.ndarray,
+    source_weights,
+) -> np.ndarray:
+    if not source_weights or not _data_has_key(data, "label_sources"):
+        return sample_weights
+
+    sources = np.asarray(data["label_sources"]).astype(str)
+    weighted = np.asarray(sample_weights, dtype=np.float32).copy()
+    for position, idx in enumerate(keep.tolist()):
+        source = sources[idx]
+        if source in source_weights:
+            weighted[position] *= float(source_weights[source])
+    return weighted
 
 
 def _extract_side_ids(data) -> np.ndarray:
