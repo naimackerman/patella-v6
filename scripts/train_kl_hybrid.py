@@ -32,6 +32,12 @@ def main(cfg: DictConfig):
     val_ds = KLHybridDataset(
         cfg.data.root, "val", str(feature_dir / "val_features.npz"), val_transform,
     )
+    if int(cfg.model.feature_dim) != int(train_ds.feat_dim):
+        raise ValueError(
+            f"Hybrid KL feature_dim mismatch: config expects {cfg.model.feature_dim}, "
+            f"but aggregated features have {train_ds.feat_dim} columns. "
+            "Regenerate features or update configs/model/convnext_hybrid.yaml."
+        )
 
     sampler = create_weighted_sampler(train_ds.labels)
 

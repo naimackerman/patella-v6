@@ -3,7 +3,7 @@ backbone: "convnext_small"
 pretrained: true
 in_channels: 1
 num_classes: 5
-feature_dim: 62
+feature_dim: 50
 fusion_hidden_dim: 256
 dropout_feature: 0.3
 dropout_fusion: 0.4
