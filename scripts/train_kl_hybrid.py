@@ -52,6 +52,14 @@ def main(cfg: DictConfig):
 
     # Model
     module = KLHybridModule(cfg)
+    resume_checkpoint = getattr(cfg, "checkpoint_path", None)
+    if resume_checkpoint in (None, "", "null", "None"):
+        resume_checkpoint = None
+    else:
+        resume_checkpoint = Path(str(resume_checkpoint))
+        if not resume_checkpoint.is_file():
+            raise FileNotFoundError(f"KL hybrid resume checkpoint not found: {resume_checkpoint}")
+        print(f"Resuming KL hybrid training from checkpoint: {resume_checkpoint}")
 
     # Trainer
     trainer = pl.Trainer(
@@ -69,14 +77,19 @@ def main(cfg: DictConfig):
                 filename="hybrid-{epoch:03d}-{val_qwk:.4f}",
                 monitor="val_qwk",
                 mode="max",
-                save_top_k=3,
+                save_top_k=1,
             ),
         ],
         default_root_dir=cfg.output_dir,
         logger=build_loggers(cfg, "kl_hybrid"),
     )
 
-    trainer.fit(module, train_loader, val_loader)
+    trainer.fit(
+        module,
+        train_loader,
+        val_loader,
+        ckpt_path=str(resume_checkpoint) if resume_checkpoint is not None else None,
+    )
     clear_memory()
 
 
