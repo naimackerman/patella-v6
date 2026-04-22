@@ -224,6 +224,7 @@ def _collect_model_predictions(
     dataset: SclerosisDataset,
     device: torch.device,
     num_workers: int,
+    binary_threshold: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     loader = DataLoader(dataset, batch_size=16, shuffle=False, num_workers=num_workers)
     preds = []
@@ -235,8 +236,13 @@ def _collect_model_predictions(
             texture_feats = texture_feats.to(device)
             side_ids_batch = side_ids_batch.to(device)
             logits = model(images, texture_feats, side_ids_batch)
-            preds.extend(logits.argmax(dim=1).cpu().numpy().tolist())
-            probs.extend(torch.softmax(logits, dim=1).cpu().numpy().tolist())
+            batch_probs = torch.softmax(logits, dim=1).cpu().numpy()
+            if binary_threshold is not None and batch_probs.shape[1] == 2:
+                batch_preds = (batch_probs[:, 1] >= float(binary_threshold)).astype(np.int64)
+            else:
+                batch_preds = logits.argmax(dim=1).cpu().numpy()
+            preds.extend(batch_preds.tolist())
+            probs.extend(batch_probs.tolist())
             targets.extend(labels.tolist())
     return (
         np.asarray(preds, dtype=np.int64),
@@ -256,12 +262,20 @@ def _apply_label_scheme_to_data(data, label_scheme: str) -> dict[str, np.ndarray
     return mapped
 
 
+def _resolve_binary_threshold(cfg: DictConfig) -> float | None:
+    threshold = getattr(cfg.training, "sclerosis_binary_threshold", None)
+    if threshold in (None, "", "null", "None"):
+        return None
+    return float(threshold)
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     seed_everything(cfg.seed)
     label_scheme = str(getattr(cfg.training, "sclerosis_label_scheme", "severity"))
     cfg = apply_sclerosis_label_scheme_to_cfg(cfg, label_scheme)
     class_names = sclerosis_class_names(label_scheme)
+    binary_threshold = _resolve_binary_threshold(cfg) if len(class_names) == 2 else None
     model_cfg = _resolve_model_cfg(cfg)
     device = get_device()
 
@@ -274,6 +288,7 @@ def main(cfg: DictConfig):
         "checkpoint_strategy": "separate" if separate else "shared",
         "label_scheme": cfg.training.sclerosis_label_scheme,
         "class_names": class_names,
+        "binary_threshold": binary_threshold,
         "checkpoints": {},
         "hybrid": {},
         "hybrid_by_side": {},
@@ -402,7 +417,13 @@ def main(cfg: DictConfig):
                     transform=transform,
                     target_size=target_roi_size,
                 )
-                preds, probs, targets = _collect_model_predictions(bundle["model"], dataset, device, cfg.data.num_workers)
+                preds, probs, targets = _collect_model_predictions(
+                    bundle["model"],
+                    dataset,
+                    device,
+                    cfg.data.num_workers,
+                    binary_threshold=binary_threshold,
+                )
                 base_image_ids = [str(item).rsplit("_", 1)[0] for item in data["image_ids"][side_keep]]
                 kl_grades = np.asarray([kl_lookup.get(image_id, 0) for image_id in base_image_ids], dtype=np.float64)
                 hybrid_by_side[side_name] = _compute_metrics(targets, preds, probs, kl_grades, class_names)
@@ -432,7 +453,13 @@ def main(cfg: DictConfig):
                     transform=transform,
                     target_size=target_roi_size,
                 )
-                preds, probs, targets = _collect_model_predictions(bundle["model"], dataset, device, cfg.data.num_workers)
+                preds, probs, targets = _collect_model_predictions(
+                    bundle["model"],
+                    dataset,
+                    device,
+                    cfg.data.num_workers,
+                    binary_threshold=binary_threshold,
+                )
                 base_image_ids = [str(item).rsplit("_", 1)[0] for item in data["image_ids"][keep]]
                 kl_grades = np.asarray([kl_lookup.get(image_id, 0) for image_id in base_image_ids], dtype=np.float64)
                 hybrid_preds_all.append(preds)

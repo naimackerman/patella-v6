@@ -333,6 +333,8 @@ SCLEROSIS_PSEUDO_TARGET_ROWS="${SCLEROSIS_PSEUDO_TARGET_ROWS:-250}"
 SCLEROSIS_PSEUDO_WEIGHT="${SCLEROSIS_PSEUDO_WEIGHT:-0.35}"
 SCLEROSIS_PSEUDO_TEACHER_CKPT="${SCLEROSIS_PSEUDO_TEACHER_CKPT:-}"
 SCLEROSIS_EVAL_DIR="${SCLEROSIS_EVAL_DIR:-}"
+SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN="${SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN:-}"
+SCLEROSIS_THRESHOLD_RESULT_DIR="${SCLEROSIS_THRESHOLD_RESULT_DIR:-${ROOT_DIR}/results/sclerosis_threshold_tuning}"
 OSTEOPHYTE_WARM_START_CHECKPOINT=""
 SCLEROSIS_TEACHER_CHECKPOINT=""
 
@@ -367,11 +369,13 @@ if [[ "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
   SCLEROSIS_FORCE_MODEL_PREDICTIONS="${SCLEROSIS_FORCE_MODEL_PREDICTIONS:-1}"
   SCLEROSIS_FINAL_LABEL_MODE="${SCLEROSIS_FINAL_LABEL_MODE:-manual}"
   SCLEROSIS_CHECKPOINT_MONITOR="${SCLEROSIS_CHECKPOINT_MONITOR:-val_auc_macro}"
+  SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN="${SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN:-1}"
 else
   SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL="${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL:-0}"
   SCLEROSIS_FORCE_MODEL_PREDICTIONS="${SCLEROSIS_FORCE_MODEL_PREDICTIONS:-0}"
   SCLEROSIS_FINAL_LABEL_MODE="${SCLEROSIS_FINAL_LABEL_MODE:-expanded}"
   SCLEROSIS_CHECKPOINT_MONITOR="${SCLEROSIS_CHECKPOINT_MONITOR:-val_f1_macro}"
+  SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN="${SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN:-0}"
 fi
 SCLEROSIS_EVAL_DIR="${SCLEROSIS_EVAL_DIR:-${SCLEROSIS_STANDARDIZER_DIR:-${SCLEROSIS_MANUAL_DIR}}}"
 
@@ -409,6 +413,7 @@ echo "Sclerosis checkpoint root: ${SCLEROSIS_CHECKPOINT_DIR}"
 echo "Sclerosis checkpoint monitor: ${SCLEROSIS_CHECKPOINT_MONITOR} (${SCLEROSIS_CHECKPOINT_MODE})"
 echo "Sclerosis final label mode: ${SCLEROSIS_FINAL_LABEL_MODE}"
 echo "Sclerosis eval feature dir: ${SCLEROSIS_EVAL_DIR}"
+echo "Sclerosis tune threshold after training: ${SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN}"
 echo "Sclerosis pseudo confidence: ${SCLEROSIS_PSEUDO_CONFIDENCE} (min ${SCLEROSIS_PSEUDO_MIN_CONFIDENCE}, target rows ${SCLEROSIS_PSEUDO_TARGET_ROWS})"
 echo "Sclerosis pseudo source weight: ${SCLEROSIS_PSEUDO_WEIGHT}"
 echo
@@ -697,27 +702,31 @@ if [[ -n "${SCLEROSIS_TEACHER_CKPT:-}" && -n "${SCLEROSIS_TEACHER_CHECKPOINT}" ]
   )
 fi
 
-SCLEROSIS_FINAL_EXTRACTOR_ARGS=("${SCLEROSIS_EXTRACTOR_TEACHER_ARGS[@]}")
-if [[ -n "${SCLEROSIS_BINARY_THRESHOLD}" ]]; then
-  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
-    "training.sclerosis_binary_threshold=${SCLEROSIS_BINARY_THRESHOLD}"
-  )
-fi
-if [[ -n "${SCLEROSIS_STANDARDIZER_DIR}" ]]; then
-  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
-    "sclerosis_standardizer_dir=${SCLEROSIS_STANDARDIZER_DIR}"
-  )
-fi
-if [[ "${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL}" == "1" ]]; then
-  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
-    training.sclerosis_apply_classifier_in_manual=true
-  )
-fi
-if [[ "${SCLEROSIS_FORCE_MODEL_PREDICTIONS}" == "1" ]]; then
-  SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
-    training.sclerosis_force_model_predictions=true
-  )
-fi
+build_sclerosis_final_extractor_args() {
+  SCLEROSIS_FINAL_EXTRACTOR_ARGS=("${SCLEROSIS_EXTRACTOR_TEACHER_ARGS[@]}")
+  if [[ -n "${SCLEROSIS_BINARY_THRESHOLD}" ]]; then
+    SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+      "training.sclerosis_binary_threshold=${SCLEROSIS_BINARY_THRESHOLD}"
+    )
+  fi
+  if [[ -n "${SCLEROSIS_STANDARDIZER_DIR}" ]]; then
+    SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+      "sclerosis_standardizer_dir=${SCLEROSIS_STANDARDIZER_DIR}"
+    )
+  fi
+  if [[ "${SCLEROSIS_APPLY_CLASSIFIER_IN_MANUAL}" == "1" ]]; then
+    SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+      training.sclerosis_apply_classifier_in_manual=true
+    )
+  fi
+  if [[ "${SCLEROSIS_FORCE_MODEL_PREDICTIONS}" == "1" ]]; then
+    SCLEROSIS_FINAL_EXTRACTOR_ARGS+=(
+      training.sclerosis_force_model_predictions=true
+    )
+  fi
+}
+
+build_sclerosis_final_extractor_args
 
 run_step 15 "Training osteophyte grader (manual-label main framework)" \
   "${STAGE15_ARGS[@]}"
@@ -838,6 +847,24 @@ run_step 22 "Extracting osteophyte features" \
   +model=se_resnet50 \
   osteophyte_roi_dir="${OSTEOPHYTE_REPRO_ROI_DIR}"
 
+if [[ "${SCLEROSIS_TUNE_THRESHOLD_AFTER_TRAIN}" == "1" && "${SCLEROSIS_LABEL_SCHEME}" == "binary_present" ]]; then
+  echo "[21t/${TOTAL_STEPS}] Tuning sclerosis binary threshold on manual validation"
+  "${PYTHON_BIN}" \
+    "${ROOT_DIR}/scripts/evaluate_sclerosis_thresholds.py" \
+    training.label_mode=manual \
+    "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}" \
+    sclerosis_output_dir="${SCLEROSIS_EVAL_DIR}" \
+    checkpoint_dir="${SCLEROSIS_CHECKPOINT_DIR}" \
+    "checkpoint_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}" \
+    "checkpoint_mode=${SCLEROSIS_CHECKPOINT_MODE}" \
+    result_dir="${SCLEROSIS_THRESHOLD_RESULT_DIR}" \
+    "${SCLEROSIS_MODEL_ARGS[@]}"
+  SCLEROSIS_BINARY_THRESHOLD="$("${PYTHON_BIN}" -c 'import json, sys; from pathlib import Path; data=json.loads(Path(sys.argv[1]).read_text()); print(data["global_threshold"]["threshold"])' "${SCLEROSIS_THRESHOLD_RESULT_DIR}/sclerosis_threshold_evaluation.json")"
+  echo "Using tuned global sclerosis threshold for final extraction: ${SCLEROSIS_BINARY_THRESHOLD}"
+  build_sclerosis_final_extractor_args
+  echo
+fi
+
 if stage_is_skipped 23; then
   print_skip_message 23 "Re-extracting sclerosis features with trained classifier"
 else
@@ -890,6 +917,7 @@ run_step 29 "Evaluating sclerosis classifier" \
   "${ROOT_DIR}/scripts/evaluate_sclerosis.py" \
   training.label_mode=manual \
   "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}" \
+  "training.sclerosis_binary_threshold=${SCLEROSIS_BINARY_THRESHOLD}" \
   sclerosis_output_dir="${SCLEROSIS_EVAL_DIR}" \
   checkpoint_dir="${SCLEROSIS_CHECKPOINT_DIR}" \
   "checkpoint_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}" \
