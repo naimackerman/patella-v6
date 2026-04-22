@@ -1,0 +1,14 @@
+{
+  "checkpoint": "/workspace/patella-v6/checkpoints/jsn_segmenter_selftrain/jsn-mjsw-epoch=005-val_mjsw_mae=1.0354.ckpt",
+  "num_samples": 60,
+  "dice_mean": 0.8894325494766235,
+  "dice_medial_mean": 0.8741293842593829,
+  "dice_lateral_mean": 0.9047357787688574,
+  "hausdorff95_mean": 1.6060184038262721,
+  "hausdorff95_medial_mean": 1.9471808156055521,
+  "hausdorff95_lateral_mean": 1.2648559920469922,
+  "mjsw_mae": 1.7217359155551506,
+  "mjsw_icc_medial": 0.8920911432271557,
+  "mjsw_icc_lateral": 0.8368803369434039,
+  "mjsw_icc_mean": 0.8644857400852798
+}

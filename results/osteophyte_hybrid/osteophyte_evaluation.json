@@ -1,0 +1,274 @@
+{
+  "medial_femur": {
+    "checkpoint": "/workspace/patella-v6/checkpoints/osteophyte/osp-multitask-epoch=139-val_kappa_mean=0.6130.ckpt",
+    "checkpoint_mode": "multitask",
+    "val": {
+      "num_samples": 75,
+      "kappa": 0.6417716022579245,
+      "balanced_accuracy": 0.5462092731829574,
+      "confusion_matrix": [
+        [
+          26,
+          11,
+          5,
+          0
+        ],
+        [
+          3,
+          6,
+          10,
+          0
+        ],
+        [
+          1,
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          1,
+          1,
+          6
+        ]
+      ],
+      "auc_macro": 0.7235386625595905
+    },
+    "test": {
+      "num_samples": 75,
+      "kappa": 0.6354017729482413,
+      "balanced_accuracy": 0.44055944055944063,
+      "confusion_matrix": [
+        [
+          31,
+          10,
+          2,
+          1
+        ],
+        [
+          2,
+          4,
+          7,
+          0
+        ],
+        [
+          2,
+          1,
+          1,
+          2
+        ],
+        [
+          2,
+          0,
+          3,
+          7
+        ]
+      ],
+      "auc_macro": 0.6821394704459219
+    }
+  },
+  "lateral_femur": {
+    "checkpoint": "/workspace/patella-v6/checkpoints/osteophyte/osp-refined-lateral_femur-epoch=000-val_kappa=0.6597.ckpt",
+    "checkpoint_mode": "refined_site",
+    "val": {
+      "num_samples": 75,
+      "kappa": 0.6596858638743455,
+      "balanced_accuracy": 0.4914946164946165,
+      "confusion_matrix": [
+        [
+          22,
+          12,
+          5,
+          0
+        ],
+        [
+          4,
+          7,
+          5,
+          2
+        ],
+        [
+          0,
+          1,
+          2,
+          4
+        ],
+        [
+          1,
+          0,
+          2,
+          8
+        ]
+      ],
+      "auc_macro": 0.7368082254039103
+    },
+    "test": {
+      "num_samples": 75,
+      "kappa": 0.11863458310016772,
+      "balanced_accuracy": 0.3325501253132832,
+      "confusion_matrix": [
+        [
+          13,
+          17,
+          5,
+          3
+        ],
+        [
+          9,
+          5,
+          4,
+          3
+        ],
+        [
+          5,
+          3,
+          3,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          2
+        ]
+      ],
+      "auc_macro": 0.564935523083534
+    }
+  },
+  "medial_tibia": {
+    "checkpoint": "/workspace/patella-v6/checkpoints/osteophyte/osp-refined-medial_tibia-epoch=023-val_kappa=0.5965.ckpt",
+    "checkpoint_mode": "refined_site",
+    "val": {
+      "num_samples": 75,
+      "kappa": 0.6035940803382663,
+      "balanced_accuracy": 0.4744318181818182,
+      "confusion_matrix": [
+        [
+          0,
+          14,
+          2,
+          0
+        ],
+        [
+          0,
+          35,
+          4,
+          1
+        ],
+        [
+          0,
+          5,
+          3,
+          3
+        ],
+        [
+          0,
+          0,
+          2,
+          6
+        ]
+      ],
+      "auc_macro": 0.7451401799882384
+    },
+    "test": {
+      "num_samples": 75,
+      "kappa": 0.4251497005988024,
+      "balanced_accuracy": 0.36041666666666666,
+      "confusion_matrix": [
+        [
+          0,
+          18,
+          1,
+          0
+        ],
+        [
+          0,
+          21,
+          0,
+          3
+        ],
+        [
+          0,
+          17,
+          3,
+          0
+        ],
+        [
+          0,
+          2,
+          5,
+          5
+        ]
+      ],
+      "auc_macro": 0.7007015365954994
+    }
+  },
+  "lateral_tibia": {
+    "checkpoint": "/workspace/patella-v6/checkpoints/osteophyte/osp-multitask-epoch=139-val_kappa_mean=0.6130.ckpt",
+    "checkpoint_mode": "multitask",
+    "val": {
+      "num_samples": 75,
+      "kappa": 0.5838881491344874,
+      "balanced_accuracy": 0.44517082017082016,
+      "confusion_matrix": [
+        [
+          5,
+          15,
+          1,
+          1
+        ],
+        [
+          5,
+          24,
+          8,
+          0
+        ],
+        [
+          0,
+          0,
+          4,
+          3
+        ],
+        [
+          0,
+          0,
+          6,
+          3
+        ]
+      ],
+      "auc_macro": 0.7922035320722453
+    },
+    "test": {
+      "num_samples": 75,
+      "kappa": 0.2756122800965851,
+      "balanced_accuracy": 0.4178439803439803,
+      "confusion_matrix": [
+        [
+          2,
+          20,
+          2,
+          0
+        ],
+        [
+          6,
+          24,
+          7,
+          0
+        ],
+        [
+          1,
+          7,
+          3,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          2
+        ]
+      ],
+      "auc_macro": 0.6716350286396726
+    }
+  }
+}

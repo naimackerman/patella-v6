@@ -1,0 +1,91 @@
+# @package training
+# Stage 15 re-run: Anti-overfit SE-ResNet50 for manual osteophyte grading
+# Goal: Reduce overfit on 350 train samples with aggressive regularization
+
+defaults:
+  - improved_osteophyte
+  - _self_
+
+label_mode: "manual"
+allow_bootstrap_fallback: false
+
+# Training config
+precision: "16-mixed"
+gradient_clip_val: 1.0
+accumulate_grad_batches: 4
+
+# Optimizer settings (MUST be in osteophyte_optimization block to override default.yaml)
+osteophyte_optimization:
+  max_epochs: 150
+  learning_rate: 3.0e-5
+  weight_decay: 1.0e-3
+  early_stopping_patience: 35
+
+# Larger batch size since we only train multitask first (refined later)
+batch_size: 16
+
+# Layer-wise LR: make backbone almost frozen (0.05x = 20x slower updates)
+layer_wise_lr:
+  enabled: true
+  backbone_ratio: 0.05
+
+# Loss
+osteophyte_loss: "focal_ordinal"
+focal_alpha: 0.5
+focal_gamma: 2.0
+osteophyte_ordinal_weight: 0.5
+
+# Class balancing (moderate — avoid over-biasing to rare grades)
+osteophyte_class_balance:
+  enabled: true
+  power: 1.0
+  normalize: false
+
+# Sampling
+osteophyte_sampling:
+  strategy: "mean_class_balance"
+  power: 1.0
+  normalize: true
+  use_confidence_weights: false
+  confidence_power: 1.0
+  max_weight_ratio_to_median: null
+
+# Scheduler: Reduce on plateau (patience 10)
+scheduler: "reduce_on_plateau"
+scheduler_params:
+  mode: "max"
+  factor: 0.5
+  patience: 10
+  verbose: true
+
+# Early stopping: more patient (was 20-30)
+early_stopping:
+  monitor: "val_kappa_mean"
+  patience: 35
+  mode: "max"
+
+# Checkpoint dir
+checkpoint_dir: "${project_root}/checkpoints/osteophyte"
+
+# Data confidence: use medium+ only for training
+annotation_confidence:
+  min_train: "medium"
+  min_eval: "low"
+  weight_low: 0.5
+  weight_medium: 0.75
+  weight_high: 1.0
+
+# Refinement sites (same as main study pipeline)
+osteophyte_refinement:
+  learning_rate: 1.0e-5
+  weight_decay: 1.0e-4
+  patience: 20
+  sites: [lateral_femur, medial_tibia]
+  base_checkpoint_dir: null
+  base_checkpoint_dirs_by_site: {}
+  freeze_non_target_heads: true
+  freeze_backbone: false
+
+# Warm-start: manual multitask checkpoint for expanded training
+osteophyte_warm_start_checkpoint: null
+osteophyte_force_retrain_multitask: true

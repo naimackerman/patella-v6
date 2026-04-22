@@ -8,6 +8,5 @@ __pycache__/
 .venv/
 
 outputs/
-checkpoints/
-/features/
 annotations/jsn_masks/
+**/.ipynb_checkpoints/
