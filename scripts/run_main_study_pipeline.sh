@@ -665,6 +665,7 @@ SCLEROSIS_STAGE17_TUNED_ARGS=(
 )
 
 SCLEROSIS_PSEUDO_ARGS=(
+  "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}"
   "training.sclerosis_primary_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}"
   "training.sclerosis_primary_mode=${SCLEROSIS_CHECKPOINT_MODE}"
   training.pseudo_confidence_threshold_osteophyte=0.90
@@ -685,6 +686,7 @@ if [[ -n "${SCLEROSIS_PSEUDO_TEACHER_CKPT}" ]]; then
 fi
 
 SCLEROSIS_EXTRACTOR_TEACHER_ARGS=(
+  "training.sclerosis_label_scheme=${SCLEROSIS_LABEL_SCHEME}"
   "checkpoint_dir=${SCLEROSIS_CHECKPOINT_DIR}"
   "checkpoint_monitor=${SCLEROSIS_CHECKPOINT_MONITOR}"
   "checkpoint_mode=${SCLEROSIS_CHECKPOINT_MODE}"
