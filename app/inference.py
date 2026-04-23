@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from typing import Dict, Optional
 
 import cv2
@@ -37,8 +41,14 @@ class TriFQPipeline:
         self,
         image_path: str,
         show_jsn: bool = True,
+        show_jsn_medial: bool = True,
+        show_jsn_lateral: bool = True,
         show_osteophytes: bool = True,
         show_sclerosis: bool = True,
+        show_kl_badge: bool = True,
+        display_preprocessing: str = "raw",
+        distance_units: str = "px",
+        pixel_spacing_mm: Optional[float] = None,
         kl_path: str = "auto",
     ) -> Dict:
         from src.data.transforms import get_eval_transforms
@@ -61,7 +71,6 @@ class TriFQPipeline:
         from src.features.subchondral_roi import extract_subchondral_roi_with_boxes
         from src.features.texture_features import extract_all_texture_features
         from src.models.kl_hybrid import HybridKLClassifier
-        from src.models.kl_xgboost import KLXGBoostClassifier
         from src.models.osteophyte_grader import OsteophyteGrader
         from src.models.roi_detector import ROIDetector
         from src.models.sclerosis_classifier import SclerosisClassifier
@@ -78,6 +87,7 @@ class TriFQPipeline:
         image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         if image is None:
             raise ValueError(f"Failed to load image: {image_path}")
+        display_image = self._preprocess_display_image(image, display_preprocessing)
 
         image_id = image_path.stem
         is_left = image_id.upper().endswith("L")
@@ -115,6 +125,8 @@ class TriFQPipeline:
         jsn_model = self._load_jsn_model(create_jsn_segmenter)
         pred_mask = None
         measurement_pairs = []
+        measurement_pairs_medial = []
+        measurement_pairs_lateral = []
         ref_mjsw = self._load_reference_mjsw()
         if jsn_model is not None:
             transformed = transform(image=image)
@@ -136,6 +148,8 @@ class TriFQPipeline:
             )
             jsn_features = {k: v for k, v in jsn_measurements.items() if k not in {"measurement_pairs", "measurement_pairs_lateral", "measurement_pairs_medial"}}
             measurement_pairs = jsn_measurements["measurement_pairs"]
+            measurement_pairs_medial = jsn_measurements.get("measurement_pairs_medial", [])
+            measurement_pairs_lateral = jsn_measurements.get("measurement_pairs_lateral", [])
         else:
             if landmark_state is None and roi_strategy in {"auto", "landmark"}:
                 try:
@@ -151,6 +165,7 @@ class TriFQPipeline:
 
         osteophyte_models = self._load_osteophyte_models(OsteophyteGrader)
         osp_heatmaps = []
+        osteophyte_margin_boxes = self._osteophyte_margin_boxes_from_mask(pred_mask, image.shape) if pred_mask is not None else {}
         if osteophyte_models is not None and len(osteophyte_models) == len(ROI_SITES):
             osp_features = {}
             site_map = {
@@ -174,13 +189,18 @@ class TriFQPipeline:
                         image_tensor=roi_tensor,
                         target_class=predicted_grade,
                     )
-                    if heatmap is not None:
-                        osp_heatmaps.append({
-                            "site": site,
-                            "bbox": bbox_by_site[site],
-                            "grade": predicted_grade,
-                            "heatmap": heatmap,
-                        })
+                    focus_bbox = osteophyte_margin_boxes.get(site) or self._osteophyte_focus_bbox(
+                        site=site,
+                        roi_bbox=bbox_by_site[site],
+                        heatmap=None,
+                    )
+                    osp_heatmaps.append({
+                        "site": site,
+                        "bbox": bbox_by_site[site],
+                        "focus_bbox": focus_bbox,
+                        "grade": predicted_grade,
+                        "heatmap": heatmap,
+                    })
 
             mf = osp_features["osp_grade_mf"]
             lf = osp_features["osp_grade_lf"]
@@ -272,15 +292,17 @@ class TriFQPipeline:
             "heuristic": self._heuristic_kl_prediction(jsn_features, osp_features, scl_features),
         }
 
-        xgb_model = self._load_xgboost_model(KLXGBoostClassifier)
-        if xgb_model is not None:
-            pred, prob = xgb_model.predict(np.asarray([feature_vector_norm], dtype=np.float64))
-            probabilities = prob[0].tolist()
-            kl_predictions["xgboost"] = {
-                "grade": int(pred[0]),
-                "confidence": float(max(probabilities)),
-                "probabilities": probabilities,
-            }
+        if self._xgboost_runtime_supported():
+            from src.models.kl_xgboost import KLXGBoostClassifier
+
+            xgb_prediction = self._predict_xgboost(KLXGBoostClassifier, feature_vector_norm)
+            if xgb_prediction is not None:
+                probabilities = xgb_prediction["probabilities"]
+                kl_predictions["xgboost"] = {
+                    "grade": int(xgb_prediction["grade"]),
+                    "confidence": float(max(probabilities)),
+                    "probabilities": probabilities,
+                }
 
         hybrid_model = self._load_hybrid_model(HybridKLClassifier)
         if hybrid_model is not None:
@@ -316,6 +338,8 @@ class TriFQPipeline:
 
         jsn_viz = {
             "measurement_pairs": measurement_pairs,
+            "measurement_pairs_medial": measurement_pairs_medial,
+            "measurement_pairs_lateral": measurement_pairs_lateral,
             **jsn_features,
         }
         site_grade_keys = {
@@ -326,7 +350,7 @@ class TriFQPipeline:
         }
         osp_viz = {
             "detections": [
-                (site, int(round(float(osp_features[grade_key]))), bbox_by_site[site])
+                (site, int(round(float(osp_features[grade_key]))), self._resolve_osteophyte_display_bbox(site, bbox_by_site[site], osp_heatmaps))
                 for site, grade_key in site_grade_keys.items()
                 if site in bbox_by_site
             ],
@@ -337,20 +361,70 @@ class TriFQPipeline:
             "heatmap": scl_canvas,
             "roi_extent": [0, image.shape[1], image.shape[0], 0],
         }
+        results["jsn_viz"] = jsn_viz
+        results["osp_viz"] = osp_viz
+        results["scl_viz"] = scl_viz
+        results["kl_pred"] = kl_pred
 
         overlay_fig = generate_xai_overlay(
-            image,
+            display_image,
             jsn_viz,
             osp_viz,
             scl_viz,
             kl_pred,
             show_jsn=show_jsn,
+            show_jsn_medial=show_jsn_medial,
+            show_jsn_lateral=show_jsn_lateral,
             show_osteophytes=show_osteophytes,
             show_sclerosis=show_sclerosis,
+            show_kl_badge=show_kl_badge,
+            distance_units=distance_units,
+            pixel_spacing_mm=pixel_spacing_mm if pixel_spacing_mm is not None else self._display_pixel_spacing_mm(),
         )
         results["overlay_figure"] = overlay_fig
         results["clinical_report"] = generate_clinical_report(jsn_features, osp_features, scl_features, kl_pred)
         return results
+
+    def render_overlay_from_results(
+        self,
+        image_path: str,
+        results: Dict,
+        show_jsn: bool = True,
+        show_jsn_medial: bool = True,
+        show_jsn_lateral: bool = True,
+        show_osteophytes: bool = True,
+        show_sclerosis: bool = True,
+        show_kl_badge: bool = True,
+        display_preprocessing: str = "raw",
+        distance_units: str = "px",
+        pixel_spacing_mm: Optional[float] = None,
+    ):
+        """Redraw the clinical overlay without recomputing model predictions."""
+        from src.xai.overlay_renderer import generate_xai_overlay
+
+        image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        if image is None:
+            raise ValueError(f"Failed to load image: {image_path}")
+        display_image = self._preprocess_display_image(image, display_preprocessing)
+        return generate_xai_overlay(
+            display_image,
+            results.get("jsn_viz", {}),
+            results.get("osp_viz", {}),
+            results.get("scl_viz", {}),
+            results.get("kl_pred", {
+                "grade": results.get("kl_grade", "?"),
+                "confidence": results.get("kl_confidence", 0.0),
+                "probabilities": results.get("kl_probabilities", []),
+            }),
+            show_jsn=show_jsn,
+            show_jsn_medial=show_jsn_medial,
+            show_jsn_lateral=show_jsn_lateral,
+            show_osteophytes=show_osteophytes,
+            show_sclerosis=show_sclerosis,
+            show_kl_badge=show_kl_badge,
+            distance_units=distance_units,
+            pixel_spacing_mm=pixel_spacing_mm if pixel_spacing_mm is not None else self._display_pixel_spacing_mm(),
+        )
 
     def _load_roi_detector(self, detector_cls):
         if self._roi_detector is not None:
@@ -491,6 +565,189 @@ class TriFQPipeline:
         self._xgb_model = model
         return self._xgb_model
 
+    def _predict_xgboost(self, model_cls, feature_vector_norm: np.ndarray) -> Optional[Dict]:
+        model_path = model_cls.resolve_model_path(self.checkpoint_dir / "kl_xgboost")
+        if not model_path.exists():
+            return None
+
+        # Keep XGBoost in a short-lived subprocess for app stability. Some macOS
+        # Python/native-library combinations can segfault in xgboost.load_model.
+        helper = Path(__file__).with_name("xgboost_predict.py")
+        payload = json.dumps({
+            "model_path": str(model_path),
+            "features": np.asarray(feature_vector_norm, dtype=np.float64).reshape(-1).tolist(),
+        })
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[1]
+        env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{env.get('PYTHONPATH', '')}"
+        try:
+            completed = subprocess.run(
+                [sys.executable, str(helper)],
+                input=payload,
+                text=True,
+                capture_output=True,
+                check=True,
+                cwd=str(repo_root),
+                env=env,
+                timeout=60,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return None
+        return json.loads(completed.stdout)
+
+    @staticmethod
+    def _preprocess_display_image(image: np.ndarray, mode: str) -> np.ndarray:
+        normalized = str(mode or "raw").strip().lower()
+        if normalized in {"raw", "none"}:
+            return image
+        if normalized == "clahe":
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+            return clahe.apply(image.astype(np.uint8))
+        if normalized in {"clip", "histogram_clip"}:
+            low, high = np.percentile(image, [1, 99])
+            clipped = np.clip(image.astype(np.float32), low, high)
+            if high > low:
+                clipped = (clipped - low) / (high - low) * 255.0
+            return clipped.astype(np.uint8)
+        if normalized in {"clip_clahe", "histogram_clip_clahe"}:
+            clipped = TriFQPipeline._preprocess_display_image(image, "clip")
+            return TriFQPipeline._preprocess_display_image(clipped, "clahe")
+        return image
+
+    @staticmethod
+    def _osteophyte_margin_boxes_from_mask(
+        pred_mask: np.ndarray,
+        image_shape: tuple[int, int],
+    ) -> dict[str, tuple[int, int, int, int]]:
+        """Estimate marginal osteophyte display boxes from JSN compartment anatomy.
+
+        These boxes are visualization anchors for OARSI site predictions. They
+        deliberately target the peripheral femoral/tibial joint margins instead
+        of the larger classifier ROI crops.
+        """
+        from src.features.jsw_computation import extract_contours
+
+        h, w = image_shape[:2]
+        compartments = {
+            "medial": 1,
+            "lateral": 2,
+        }
+        contours = {}
+        centers = {}
+        for side, class_id in compartments.items():
+            femoral, tibial = extract_contours(pred_mask, class_id=class_id)
+            if femoral is None or tibial is None:
+                continue
+            all_points = np.vstack([femoral, tibial])
+            contours[side] = {"femur": femoral, "tibia": tibial}
+            centers[side] = float(np.mean(all_points[:, 0]))
+
+        if not contours:
+            return {}
+
+        boxes: dict[str, tuple[int, int, int, int]] = {}
+        for side, side_contours in contours.items():
+            other_centers = [value for key, value in centers.items() if key != side]
+            if other_centers:
+                outer_is_left = centers[side] < float(np.mean(other_centers))
+            else:
+                outer_is_left = side == "lateral"
+
+            for bone_key, site in [("femur", f"{side}_femur"), ("tibia", f"{side}_tibia")]:
+                contour = side_contours[bone_key]
+                x_values = contour[:, 0]
+                target_x = float(np.min(x_values) if outer_is_left else np.max(x_values))
+                margin_band = max(3.0, 0.08 * float(np.ptp(x_values) if np.ptp(x_values) > 0 else w))
+                candidates = contour[np.abs(contour[:, 0] - target_x) <= margin_band]
+                if len(candidates) == 0:
+                    candidates = contour
+                if bone_key == "femur":
+                    # Femoral marginal osteophytes are anchored at the distal
+                    # femoral articular margin adjacent to the joint space.
+                    point = candidates[np.argmax(candidates[:, 1])]
+                else:
+                    # Tibial marginal osteophytes are anchored at the proximal
+                    # tibial plateau margin adjacent to the joint space.
+                    point = candidates[np.argmin(candidates[:, 1])]
+
+                comp_width = max(1.0, float(np.ptp(x_values)))
+                box_size = int(max(24, min(48, round(comp_width * 0.24))))
+                cx, cy = float(point[0]), float(point[1])
+                if bone_key == "femur":
+                    cy -= box_size * 0.70
+                else:
+                    cy += box_size * 0.85
+                x1 = int(round(cx - box_size / 2))
+                y1 = int(round(cy - box_size / 2))
+                x1 = max(0, min(w - box_size, x1))
+                y1 = max(0, min(h - box_size, y1))
+                boxes[site] = (x1, y1, box_size, box_size)
+        return boxes
+
+    @staticmethod
+    def _osteophyte_focus_bbox(
+        site: str,
+        roi_bbox: tuple[int, int, int, int],
+        heatmap: Optional[np.ndarray],
+    ) -> tuple[int, int, int, int]:
+        x, y, w, h = map(int, roi_bbox)
+        focus_w = max(12, int(w * 0.13))
+        focus_h = max(12, int(h * 0.13))
+        if heatmap is not None and heatmap.size > 0:
+            hm = np.asarray(heatmap, dtype=np.float32)
+            threshold = max(float(np.percentile(hm, 96)), float(hm.max()) * 0.72)
+            ys, xs = np.where(hm >= threshold)
+            if xs.size > 0 and ys.size > 0:
+                weights = hm[ys, xs]
+                if float(weights.sum()) > 1e-8:
+                    cx_hm = float(np.average(xs, weights=weights))
+                    cy_hm = float(np.average(ys, weights=weights))
+                else:
+                    cx_hm = float(np.mean(xs))
+                    cy_hm = float(np.mean(ys))
+                cx = int(round(x + cx_hm / max(hm.shape[1] - 1, 1) * w))
+                cy = int(round(y + cy_hm / max(hm.shape[0] - 1, 1) * h))
+                return (
+                    max(0, cx - focus_w // 2),
+                    max(0, cy - focus_h // 2),
+                    focus_w,
+                    focus_h,
+                )
+
+        box_w = focus_w
+        box_h = focus_h
+        if "femur" in site:
+            fy = y + int(h * 0.67)
+        else:
+            fy = y + int(h * 0.08)
+        if "medial" in site:
+            fx = x + int(w * 0.72)
+        else:
+            fx = x + int(w * 0.08)
+        return (fx, fy, box_w, box_h)
+
+    @staticmethod
+    def _resolve_osteophyte_display_bbox(site: str, roi_bbox: tuple[int, int, int, int], heatmap_items: list[dict]) -> tuple[int, int, int, int]:
+        for item in heatmap_items:
+            if item.get("site") == site and item.get("focus_bbox") is not None:
+                return item["focus_bbox"]
+        return TriFQPipeline._osteophyte_focus_bbox(site, roi_bbox, None)
+
+    @staticmethod
+    def _xgboost_runtime_supported() -> bool:
+        """Avoid known native xgboost crashes in the local Python 3.13 app runtime."""
+        return sys.version_info < (3, 13)
+
+    def _display_pixel_spacing_mm(self) -> Optional[float]:
+        value = getattr(self.config.preprocessing, "display_pixel_spacing_mm", None)
+        if value in (None, "", "null", "None"):
+            return None
+        try:
+            spacing = float(value)
+        except (TypeError, ValueError):
+            return None
+        return spacing if spacing > 0 else None
+
     def _load_hybrid_model(self, model_cls):
         if self._hybrid_model is not None:
             return self._hybrid_model
@@ -519,6 +776,12 @@ class TriFQPipeline:
         normalized = str(requested_path or "auto").strip().lower()
         if normalized in predictions:
             return predictions[normalized], normalized
+        if normalized == "xgboost" and "xgboost" not in predictions:
+            available = ", ".join(predictions.keys())
+            raise ValueError(
+                "XGBoost is unavailable in this Python runtime. "
+                f"Available KL paths: {available}. Use Python 3.11/3.12 for Path A XGBoost."
+            )
         if normalized not in {"auto", "", "default"}:
             raise ValueError(
                 "Unsupported kl_path. Expected one of: auto, xgboost, hybrid, heuristic."

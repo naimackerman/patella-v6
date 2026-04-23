@@ -54,6 +54,8 @@ def extract_sclerosis_gradcam(
     target_class: Optional[int] = None,
 ) -> Optional[np.ndarray]:
     """Generate a Grad-CAM heatmap for one sclerosis ROI."""
+    if getattr(model, "cnn", None) is None:
+        return None
     target_layer = _find_last_conv_layer(model.cnn)
     if target_layer is None:
         return None
