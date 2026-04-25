@@ -1,0 +1,105 @@
+{
+  "report_full_qwk": 0.8436141448414802,
+  "rows": [
+    {
+      "baseline_source": "archived_report_evaluation",
+      "ablation": "full_report_reference",
+      "description": "Archived report Path B full prediction result",
+      "qwk": 0.8436141448414802,
+      "delta_qwk_vs_report_full": 0.0,
+      "accuracy": 0.663647342995169,
+      "f1_macro": 0.669250722561361,
+      "auc_macro": 0.9016722430887858
+    },
+    {
+      "baseline_source": "current_ablation_full_check",
+      "ablation": "full",
+      "description": "Original images + original 50-dim feature vector",
+      "qwk": 0.8360726922783526,
+      "delta_qwk_vs_report_full": -0.00754145256312766,
+      "accuracy": 0.6624396135265701,
+      "f1_macro": 0.6647414306244448,
+      "auc_macro": 0.90178885046088
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "zero_all",
+      "description": "Images + feature vector replaced by post-normalization zeros",
+      "qwk": 0.74534668596531,
+      "delta_qwk_vs_report_full": -0.09826745887617028,
+      "accuracy": 0.5615942028985508,
+      "f1_macro": 0.3978412668030522,
+      "auc_macro": 0.854308388644256
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "permute_all",
+      "description": "Images + feature vector permuted across samples",
+      "qwk": 0.5593385284890193,
+      "delta_qwk_vs_report_full": -0.2842756163524609,
+      "accuracy": 0.5,
+      "f1_macro": 0.3760575062423994,
+      "auc_macro": 0.7685457426639762
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "zero_jsn",
+      "description": "Images + JSN dimensions zeroed",
+      "qwk": 0.7409610455715627,
+      "delta_qwk_vs_report_full": -0.1026530992699175,
+      "accuracy": 0.5652173913043478,
+      "f1_macro": 0.4047528854595101,
+      "auc_macro": 0.8537803612771013
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "permute_jsn",
+      "description": "Images + JSN dimensions permuted",
+      "qwk": 0.5850544553247568,
+      "delta_qwk_vs_report_full": -0.2585596895167235,
+      "accuracy": 0.48731884057971014,
+      "f1_macro": 0.3620579589404912,
+      "auc_macro": 0.7672362170890038
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "zero_osteophyte",
+      "description": "Images + osteophyte dimensions zeroed",
+      "qwk": 0.8391855642448879,
+      "delta_qwk_vs_report_full": -0.004428580596592346,
+      "accuracy": 0.6624396135265701,
+      "f1_macro": 0.6753513399591252,
+      "auc_macro": 0.9023929456861344
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "permute_osteophyte",
+      "description": "Images + osteophyte dimensions permuted",
+      "qwk": 0.8358929891727216,
+      "delta_qwk_vs_report_full": -0.007721155668758639,
+      "accuracy": 0.6570048309178744,
+      "f1_macro": 0.6678441879651305,
+      "auc_macro": 0.8999031638314158
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "zero_sclerosis",
+      "description": "Images + sclerosis dimensions zeroed",
+      "qwk": 0.8345793885253517,
+      "delta_qwk_vs_report_full": -0.00903475631612849,
+      "accuracy": 0.6606280193236715,
+      "f1_macro": 0.665254379831945,
+      "auc_macro": 0.899465207797806
+    },
+    {
+      "baseline_source": "current_no_retraining_feature_ablation",
+      "ablation": "permute_sclerosis",
+      "description": "Images + sclerosis dimensions permuted",
+      "qwk": 0.8342663919051558,
+      "delta_qwk_vs_report_full": -0.009347752936324394,
+      "accuracy": 0.6551932367149759,
+      "f1_macro": 0.6601431249609295,
+      "auc_macro": 0.8971407518110658
+    }
+  ]
+}

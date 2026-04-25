@@ -671,17 +671,16 @@ class TriFQPipeline:
                     point = candidates[np.argmin(candidates[:, 1])]
 
                 comp_width = max(1.0, float(np.ptp(x_values)))
-                box_size = int(max(24, min(48, round(comp_width * 0.24))))
+                box_w = int(max(34, min(68, round(comp_width * 0.30))))
+                box_h = int(max(42, min(88, round(comp_width * 0.42))))
                 cx, cy = float(point[0]), float(point[1])
-                if bone_key == "femur":
-                    cy -= box_size * 0.70
-                else:
-                    cy += box_size * 0.85
-                x1 = int(round(cx - box_size / 2))
-                y1 = int(round(cy - box_size / 2))
-                x1 = max(0, min(w - box_size, x1))
-                y1 = max(0, min(h - box_size, y1))
-                boxes[site] = (x1, y1, box_size, box_size)
+                x1 = int(round(cx - box_w / 2))
+                # Keep the selected bone-margin anchor at the middle of the box.
+                femur_shift = box_h * 0.14 if bone_key == "femur" else 0.0
+                y1 = int(round(cy - box_h / 2 - femur_shift))
+                x1 = max(0, min(w - box_w, x1))
+                y1 = max(0, min(h - box_h, y1))
+                boxes[site] = (x1, y1, box_w, box_h)
         return boxes
 
     @staticmethod
@@ -691,8 +690,8 @@ class TriFQPipeline:
         heatmap: Optional[np.ndarray],
     ) -> tuple[int, int, int, int]:
         x, y, w, h = map(int, roi_bbox)
-        focus_w = max(12, int(w * 0.13))
-        focus_h = max(12, int(h * 0.13))
+        focus_w = max(16, int(w * 0.16))
+        focus_h = max(22, int(h * 0.22))
         if heatmap is not None and heatmap.size > 0:
             hm = np.asarray(heatmap, dtype=np.float32)
             threshold = max(float(np.percentile(hm, 96)), float(hm.max()) * 0.72)
@@ -707,9 +706,10 @@ class TriFQPipeline:
                     cy_hm = float(np.mean(ys))
                 cx = int(round(x + cx_hm / max(hm.shape[1] - 1, 1) * w))
                 cy = int(round(y + cy_hm / max(hm.shape[0] - 1, 1) * h))
+                femur_shift = focus_h * 0.14 if "femur" in site else 0.0
                 return (
                     max(0, cx - focus_w // 2),
-                    max(0, cy - focus_h // 2),
+                    max(0, int(round(cy - focus_h / 2 - femur_shift))),
                     focus_w,
                     focus_h,
                 )
@@ -717,14 +717,14 @@ class TriFQPipeline:
         box_w = focus_w
         box_h = focus_h
         if "femur" in site:
-            fy = y + int(h * 0.67)
+            fy = y + int(h * 0.50)
         else:
-            fy = y + int(h * 0.08)
+            fy = y + int(h * 0.02)
         if "medial" in site:
             fx = x + int(w * 0.72)
         else:
             fx = x + int(w * 0.08)
-        return (fx, fy, box_w, box_h)
+        return (max(0, fx - box_w // 2), max(0, fy - box_h // 2), box_w, box_h)
 
     @staticmethod
     def _resolve_osteophyte_display_bbox(site: str, roi_bbox: tuple[int, int, int, int], heatmap_items: list[dict]) -> tuple[int, int, int, int]:

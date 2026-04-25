@@ -49,6 +49,8 @@ CUSTOM_CSS = """
   border-radius: 8px;
   padding: 14px 16px;
   color: #0f172a;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 .report-panel h3 {
   margin-top: 0;
@@ -62,6 +64,28 @@ CUSTOM_CSS = """
   font-size: 13px;
   line-height: 1.55;
   white-space: normal;
+}
+.quadrant-card {
+  border: 1px solid #dbe3ef;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.quadrant-card .gradio-image,
+.quadrant-card .gradio-html {
+  min-height: 100%;
+}
+#report-output {
+  min-height: 860px;
+}
+#report-output .report-panel {
+  min-height: 860px;
+}
+#report-output .report-body {
+  max-height: 800px;
+  overflow-y: auto;
 }
 #analyze-button button {
   min-height: 48px;
@@ -223,23 +247,28 @@ def create_app(checkpoint_dir: str = "checkpoints") -> gr.Blocks:
         )
 
     with gr.Blocks(
-        title="xrAI-OA",
+        title="Knee-xRAI",
         theme=gr.themes.Soft(primary_hue="blue", neutral_hue="slate"),
         css=CUSTOM_CSS,
     ) as app:
         gr.HTML(
             """
             <section class="clinical-hero">
-              <h1>xrAI-OA</h1>
+              <h1>Knee-xRAI</h1>
               <p>Explainable knee OA assessment with JSN measurement, osteophyte grading, sclerosis quantification, and KL prediction.</p>
             </section>
             """
         )
 
         with gr.Row():
-            with gr.Column(scale=4, min_width=360):
-                with gr.Group():
-                    input_image = gr.Image(type="filepath", label="Input knee radiograph", height=300, elem_id="input-image")
+            with gr.Column(scale=1, min_width=540):
+                with gr.Group(elem_classes=["quadrant-card"]):
+                    input_image = gr.Image(
+                        type="filepath",
+                        label="Input knee radiograph",
+                        height=240,
+                        elem_id="input-image",
+                    )
                     kl_path = gr.Dropdown(
                         choices=kl_choices,
                         value="hybrid",
@@ -279,11 +308,26 @@ def create_app(checkpoint_dir: str = "checkpoints") -> gr.Blocks:
                         show_kl_badge = gr.Checkbox(value=True, label="KL badge")
                     analyze_btn = gr.Button("Analyze radiograph", variant="primary", elem_id="analyze-button")
 
-                grade_chart = gr.Image(label="KL probability distribution", height=260, elem_id="grade-chart")
+                with gr.Group(elem_classes=["quadrant-card"]):
+                    output_image = gr.Image(
+                        label="Annotated clinical overlay",
+                        height=620,
+                        elem_id="annotated-image",
+                    )
 
-            with gr.Column(scale=7, min_width=620):
-                output_image = gr.Image(label="Annotated clinical overlay", height=620, elem_id="annotated-image")
-                report_output = gr.HTML(label="Structured clinical report")
+            with gr.Column(scale=1, min_width=540):
+                with gr.Group(elem_classes=["quadrant-card"]):
+                    grade_chart = gr.Image(
+                        label="KL probability distribution",
+                        height=480,
+                        elem_id="grade-chart",
+                    )
+
+                with gr.Group(elem_classes=["quadrant-card"]):
+                    report_output = gr.HTML(
+                        label="Structured clinical report",
+                        elem_id="report-output",
+                    )
 
         analysis_inputs = [
             input_image,

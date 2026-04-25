@@ -1,0 +1,601 @@
+{
+  "checkpoint": "/Users/naim/Desktop/patella-v6/checkpoints/kl_hybrid/hybrid-epoch=072-val_qwk=0.8053.ckpt",
+  "feature_dim": 50,
+  "note": "Zero ablations are applied after training-set z-score normalization, so zero_all is equivalent to replacing raw features with the training-set mean. Permutation ablations preserve the feature distribution but break image-feature alignment.",
+  "test": {
+    "full": {
+      "num_samples": 1656,
+      "qwk": 0.8360726922783526,
+      "confusion_matrix": [
+        [
+          490,
+          125,
+          22,
+          2,
+          0
+        ],
+        [
+          105,
+          124,
+          61,
+          6,
+          0
+        ],
+        [
+          31,
+          111,
+          269,
+          36,
+          0
+        ],
+        [
+          0,
+          8,
+          23,
+          169,
+          23
+        ],
+        [
+          0,
+          0,
+          0,
+          6,
+          45
+        ]
+      ],
+      "f1_KL0": 0.7747035573122529,
+      "precision_KL0": 0.7827476038338658,
+      "recall_KL0": 0.7668231611893583,
+      "f1_KL1": 0.37349397590361444,
+      "precision_KL1": 0.33695652173913043,
+      "recall_KL1": 0.4189189189189189,
+      "f1_KL2": 0.6545012165450121,
+      "precision_KL2": 0.7173333333333334,
+      "recall_KL2": 0.6017897091722595,
+      "f1_KL3": 0.7647058823529411,
+      "precision_KL3": 0.771689497716895,
+      "recall_KL3": 0.757847533632287,
+      "f1_KL4": 0.7563025210084033,
+      "precision_KL4": 0.6617647058823529,
+      "recall_KL4": 0.8823529411764706,
+      "accuracy": 0.6624396135265701,
+      "f1_macro": 0.6647414306244448,
+      "f1_weighted": 0.6686308418609629,
+      "auc_macro": 0.90178885046088,
+      "description": "Original images + original 50-dim feature vector",
+      "intervention": "none",
+      "feature_group": "all",
+      "n_features_changed": 0,
+      "delta_qwk_vs_full": 0.0,
+      "delta_accuracy_vs_full": 0.0
+    },
+    "zero_all": {
+      "num_samples": 1656,
+      "qwk": 0.74534668596531,
+      "confusion_matrix": [
+        [
+          474,
+          149,
+          16,
+          0,
+          0
+        ],
+        [
+          98,
+          147,
+          51,
+          0,
+          0
+        ],
+        [
+          22,
+          155,
+          267,
+          3,
+          0
+        ],
+        [
+          2,
+          14,
+          165,
+          42,
+          0
+        ],
+        [
+          0,
+          0,
+          24,
+          27,
+          0
+        ]
+      ],
+      "f1_KL0": 0.7676113360323886,
+      "precision_KL0": 0.7953020134228188,
+      "recall_KL0": 0.7417840375586855,
+      "f1_KL1": 0.38633377135348224,
+      "precision_KL1": 0.3161290322580645,
+      "recall_KL1": 0.4966216216216216,
+      "f1_KL2": 0.5505154639175258,
+      "precision_KL2": 0.5105162523900574,
+      "recall_KL2": 0.5973154362416108,
+      "f1_KL3": 0.2847457627118644,
+      "precision_KL3": 0.5833333333333334,
+      "recall_KL3": 0.18834080717488788,
+      "f1_KL4": 0.0,
+      "precision_KL4": 0.0,
+      "recall_KL4": 0.0,
+      "accuracy": 0.5615942028985508,
+      "f1_macro": 0.3978412668030522,
+      "f1_weighted": 0.5521963511480718,
+      "auc_macro": 0.854308388644256,
+      "description": "Images + feature vector replaced by post-normalization zeros",
+      "intervention": "zero",
+      "feature_group": "all",
+      "n_features_changed": 50,
+      "delta_qwk_vs_full": -0.09072600631304262,
+      "delta_accuracy_vs_full": -0.10084541062801933
+    },
+    "permute_all": {
+      "num_samples": 1656,
+      "qwk": 0.5593385284890193,
+      "confusion_matrix": [
+        [
+          413,
+          131,
+          23,
+          57,
+          15
+        ],
+        [
+          90,
+          122,
+          55,
+          20,
+          9
+        ],
+        [
+          18,
+          108,
+          237,
+          70,
+          14
+        ],
+        [
+          2,
+          16,
+          145,
+          53,
+          7
+        ],
+        [
+          0,
+          0,
+          34,
+          14,
+          3
+        ]
+      ],
+      "f1_KL0": 0.7108433734939759,
+      "precision_KL0": 0.7896749521988528,
+      "recall_KL0": 0.6463223787167449,
+      "f1_KL1": 0.362555720653789,
+      "precision_KL1": 0.32360742705570295,
+      "recall_KL1": 0.41216216216216217,
+      "f1_KL2": 0.5037194473963869,
+      "precision_KL2": 0.4797570850202429,
+      "recall_KL2": 0.5302013422818792,
+      "f1_KL3": 0.2425629290617849,
+      "precision_KL3": 0.24766355140186916,
+      "recall_KL3": 0.23766816143497757,
+      "f1_KL4": 0.06060606060606061,
+      "precision_KL4": 0.0625,
+      "recall_KL4": 0.058823529411764705,
+      "accuracy": 0.5,
+      "f1_macro": 0.3760575062423994,
+      "f1_weighted": 0.5095956788852923,
+      "auc_macro": 0.7685457426639762,
+      "description": "Images + feature vector permuted across samples",
+      "intervention": "permute",
+      "feature_group": "all",
+      "n_features_changed": 50,
+      "delta_qwk_vs_full": -0.27673416378933324,
+      "delta_accuracy_vs_full": -0.1624396135265701
+    },
+    "zero_jsn": {
+      "num_samples": 1656,
+      "qwk": 0.7409610455715627,
+      "confusion_matrix": [
+        [
+          467,
+          150,
+          22,
+          0,
+          0
+        ],
+        [
+          98,
+          132,
+          66,
+          0,
+          0
+        ],
+        [
+          24,
+          132,
+          288,
+          3,
+          0
+        ],
+        [
+          1,
+          14,
+          159,
+          49,
+          0
+        ],
+        [
+          0,
+          0,
+          28,
+          23,
+          0
+        ]
+      ],
+      "f1_KL0": 0.7599674532139952,
+      "precision_KL0": 0.7915254237288135,
+      "recall_KL0": 0.730829420970266,
+      "f1_KL1": 0.36464088397790057,
+      "precision_KL1": 0.308411214953271,
+      "recall_KL1": 0.44594594594594594,
+      "f1_KL2": 0.5702970297029702,
+      "precision_KL2": 0.5115452930728241,
+      "recall_KL2": 0.6442953020134228,
+      "f1_KL3": 0.3288590604026846,
+      "precision_KL3": 0.6533333333333333,
+      "recall_KL3": 0.21973094170403587,
+      "f1_KL4": 0.0,
+      "precision_KL4": 0.0,
+      "recall_KL4": 0.0,
+      "accuracy": 0.5652173913043478,
+      "f1_macro": 0.4047528854595101,
+      "f1_weighted": 0.5566493037489297,
+      "auc_macro": 0.8537803612771013,
+      "description": "Images + JSN dimensions zeroed",
+      "intervention": "zero",
+      "feature_group": "jsn",
+      "n_features_changed": 22,
+      "delta_qwk_vs_full": -0.09511164670678984,
+      "delta_accuracy_vs_full": -0.09722222222222232
+    },
+    "permute_jsn": {
+      "num_samples": 1656,
+      "qwk": 0.5850544553247568,
+      "confusion_matrix": [
+        [
+          420,
+          140,
+          29,
+          43,
+          7
+        ],
+        [
+          96,
+          111,
+          51,
+          27,
+          11
+        ],
+        [
+          29,
+          121,
+          218,
+          68,
+          11
+        ],
+        [
+          2,
+          12,
+          147,
+          56,
+          6
+        ],
+        [
+          0,
+          0,
+          34,
+          15,
+          2
+        ]
+      ],
+      "f1_KL0": 0.7082630691399663,
+      "precision_KL0": 0.7678244972577697,
+      "recall_KL0": 0.6572769953051644,
+      "f1_KL1": 0.3264705882352941,
+      "precision_KL1": 0.2890625,
+      "recall_KL1": 0.375,
+      "f1_KL2": 0.4708423326133909,
+      "precision_KL2": 0.4551148225469729,
+      "recall_KL2": 0.48769574944071586,
+      "f1_KL3": 0.25925925925925924,
+      "precision_KL3": 0.2679425837320574,
+      "recall_KL3": 0.25112107623318386,
+      "f1_KL4": 0.045454545454545456,
+      "precision_KL4": 0.05405405405405406,
+      "recall_KL4": 0.0392156862745098,
+      "accuracy": 0.48731884057971014,
+      "f1_macro": 0.3620579589404912,
+      "f1_weighted": 0.49505731558530675,
+      "auc_macro": 0.7672362170890038,
+      "description": "Images + JSN dimensions permuted",
+      "intervention": "permute",
+      "feature_group": "jsn",
+      "n_features_changed": 22,
+      "delta_qwk_vs_full": -0.2510182369535958,
+      "delta_accuracy_vs_full": -0.17512077294685996
+    },
+    "zero_osteophyte": {
+      "num_samples": 1656,
+      "qwk": 0.8391855642448879,
+      "confusion_matrix": [
+        [
+          482,
+          136,
+          20,
+          1,
+          0
+        ],
+        [
+          100,
+          127,
+          62,
+          7,
+          0
+        ],
+        [
+          28,
+          115,
+          263,
+          41,
+          0
+        ],
+        [
+          0,
+          7,
+          20,
+          182,
+          14
+        ],
+        [
+          0,
+          0,
+          0,
+          8,
+          43
+        ]
+      ],
+      "f1_KL0": 0.7718174539631706,
+      "precision_KL0": 0.7901639344262295,
+      "recall_KL0": 0.7543035993740219,
+      "f1_KL1": 0.37298091042584436,
+      "precision_KL1": 0.32987012987012987,
+      "recall_KL1": 0.42905405405405406,
+      "f1_KL2": 0.6477832512315271,
+      "precision_KL2": 0.7205479452054795,
+      "recall_KL2": 0.5883668903803132,
+      "f1_KL3": 0.7878787878787878,
+      "precision_KL3": 0.7615062761506276,
+      "recall_KL3": 0.8161434977578476,
+      "f1_KL4": 0.7962962962962963,
+      "precision_KL4": 0.7543859649122807,
+      "recall_KL4": 0.8431372549019608,
+      "accuracy": 0.6624396135265701,
+      "f1_macro": 0.6753513399591252,
+      "f1_weighted": 0.6699643095876143,
+      "auc_macro": 0.9023929456861344,
+      "description": "Images + osteophyte dimensions zeroed",
+      "intervention": "zero",
+      "feature_group": "osteophyte",
+      "n_features_changed": 10,
+      "delta_qwk_vs_full": 0.0031128719665353133,
+      "delta_accuracy_vs_full": 0.0
+    },
+    "permute_osteophyte": {
+      "num_samples": 1656,
+      "qwk": 0.8358929891727216,
+      "confusion_matrix": [
+        [
+          484,
+          133,
+          21,
+          1,
+          0
+        ],
+        [
+          101,
+          122,
+          66,
+          7,
+          0
+        ],
+        [
+          28,
+          117,
+          262,
+          40,
+          0
+        ],
+        [
+          0,
+          8,
+          23,
+          177,
+          15
+        ],
+        [
+          0,
+          0,
+          0,
+          8,
+          43
+        ]
+      ],
+      "f1_KL0": 0.7731629392971247,
+      "precision_KL0": 0.7895595432300163,
+      "recall_KL0": 0.7574334898278561,
+      "f1_KL1": 0.3609467455621302,
+      "precision_KL1": 0.32105263157894737,
+      "recall_KL1": 0.41216216216216217,
+      "f1_KL2": 0.6398046398046398,
+      "precision_KL2": 0.7043010752688172,
+      "recall_KL2": 0.5861297539149888,
+      "f1_KL3": 0.7763157894736842,
+      "precision_KL3": 0.759656652360515,
+      "recall_KL3": 0.7937219730941704,
+      "f1_KL4": 0.7889908256880734,
+      "precision_KL4": 0.7413793103448276,
+      "recall_KL4": 0.8431372549019608,
+      "accuracy": 0.6570048309178744,
+      "f1_macro": 0.6678441879651305,
+      "f1_weighted": 0.6643967282926633,
+      "auc_macro": 0.8999031638314158,
+      "description": "Images + osteophyte dimensions permuted",
+      "intervention": "permute",
+      "feature_group": "osteophyte",
+      "n_features_changed": 10,
+      "delta_qwk_vs_full": -0.00017970310563097946,
+      "delta_accuracy_vs_full": -0.005434782608695676
+    },
+    "zero_sclerosis": {
+      "num_samples": 1656,
+      "qwk": 0.8345793885253517,
+      "confusion_matrix": [
+        [
+          501,
+          118,
+          17,
+          3,
+          0
+        ],
+        [
+          105,
+          131,
+          53,
+          7,
+          0
+        ],
+        [
+          34,
+          127,
+          249,
+          37,
+          0
+        ],
+        [
+          0,
+          8,
+          26,
+          167,
+          22
+        ],
+        [
+          0,
+          0,
+          0,
+          5,
+          46
+        ]
+      ],
+      "f1_KL0": 0.7834245504300235,
+      "precision_KL0": 0.7828125,
+      "recall_KL0": 0.784037558685446,
+      "f1_KL1": 0.38529411764705884,
+      "precision_KL1": 0.3411458333333333,
+      "recall_KL1": 0.44256756756756754,
+      "f1_KL2": 0.6287878787878788,
+      "precision_KL2": 0.7217391304347827,
+      "recall_KL2": 0.5570469798657718,
+      "f1_KL3": 0.755656108597285,
+      "precision_KL3": 0.7625570776255708,
+      "recall_KL3": 0.7488789237668162,
+      "f1_KL4": 0.773109243697479,
+      "precision_KL4": 0.6764705882352942,
+      "recall_KL4": 0.9019607843137255,
+      "accuracy": 0.6606280193236715,
+      "f1_macro": 0.665254379831945,
+      "f1_weighted": 0.6664634130508827,
+      "auc_macro": 0.899465207797806,
+      "description": "Images + sclerosis dimensions zeroed",
+      "intervention": "zero",
+      "feature_group": "sclerosis",
+      "n_features_changed": 18,
+      "delta_qwk_vs_full": -0.0014933037530008297,
+      "delta_accuracy_vs_full": -0.0018115942028985588
+    },
+    "permute_sclerosis": {
+      "num_samples": 1656,
+      "qwk": 0.8342663919051558,
+      "confusion_matrix": [
+        [
+          484,
+          133,
+          20,
+          2,
+          0
+        ],
+        [
+          99,
+          130,
+          61,
+          6,
+          0
+        ],
+        [
+          33,
+          113,
+          263,
+          38,
+          0
+        ],
+        [
+          0,
+          5,
+          33,
+          163,
+          22
+        ],
+        [
+          0,
+          0,
+          0,
+          6,
+          45
+        ]
+      ],
+      "f1_KL0": 0.7713147410358566,
+      "precision_KL0": 0.7857142857142857,
+      "recall_KL0": 0.7574334898278561,
+      "f1_KL1": 0.38404726735598227,
+      "precision_KL1": 0.34120734908136485,
+      "recall_KL1": 0.4391891891891892,
+      "f1_KL2": 0.6383495145631068,
+      "precision_KL2": 0.6976127320954907,
+      "recall_KL2": 0.5883668903803132,
+      "f1_KL3": 0.7442922374429224,
+      "precision_KL3": 0.7581395348837209,
+      "recall_KL3": 0.7309417040358744,
+      "f1_KL4": 0.7627118644067796,
+      "precision_KL4": 0.6716417910447762,
+      "recall_KL4": 0.8823529411764706,
+      "accuracy": 0.6551932367149759,
+      "f1_macro": 0.6601431249609295,
+      "f1_weighted": 0.662298199096322,
+      "auc_macro": 0.8971407518110658,
+      "description": "Images + sclerosis dimensions permuted",
+      "intervention": "permute",
+      "feature_group": "sclerosis",
+      "n_features_changed": 18,
+      "delta_qwk_vs_full": -0.0018063003731967342,
+      "delta_accuracy_vs_full": -0.007246376811594235
+    }
+  }
+}

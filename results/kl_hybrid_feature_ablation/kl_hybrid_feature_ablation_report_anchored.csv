@@ -1,0 +1,11 @@
+baseline_source,ablation,description,qwk,delta_qwk_vs_report_full,accuracy,f1_macro,auc_macro
+archived_report_evaluation,full_report_reference,Archived report Path B full prediction result,0.8436141448414802,0.0,0.663647342995169,0.669250722561361,0.9016722430887858
+current_ablation_full_check,full,Original images + original 50-dim feature vector,0.8360726922783526,-0.00754145256312766,0.6624396135265701,0.6647414306244448,0.90178885046088
+current_no_retraining_feature_ablation,zero_all,Images + feature vector replaced by post-normalization zeros,0.74534668596531,-0.09826745887617028,0.5615942028985508,0.3978412668030522,0.854308388644256
+current_no_retraining_feature_ablation,permute_all,Images + feature vector permuted across samples,0.5593385284890193,-0.2842756163524609,0.5,0.3760575062423994,0.7685457426639762
+current_no_retraining_feature_ablation,zero_jsn,Images + JSN dimensions zeroed,0.7409610455715627,-0.1026530992699175,0.5652173913043478,0.4047528854595101,0.8537803612771013
+current_no_retraining_feature_ablation,permute_jsn,Images + JSN dimensions permuted,0.5850544553247568,-0.2585596895167235,0.48731884057971014,0.3620579589404912,0.7672362170890038
+current_no_retraining_feature_ablation,zero_osteophyte,Images + osteophyte dimensions zeroed,0.8391855642448879,-0.004428580596592346,0.6624396135265701,0.6753513399591252,0.9023929456861344
+current_no_retraining_feature_ablation,permute_osteophyte,Images + osteophyte dimensions permuted,0.8358929891727216,-0.007721155668758639,0.6570048309178744,0.6678441879651305,0.8999031638314158
+current_no_retraining_feature_ablation,zero_sclerosis,Images + sclerosis dimensions zeroed,0.8345793885253517,-0.00903475631612849,0.6606280193236715,0.665254379831945,0.899465207797806
+current_no_retraining_feature_ablation,permute_sclerosis,Images + sclerosis dimensions permuted,0.8342663919051558,-0.009347752936324394,0.6551932367149759,0.6601431249609295,0.8971407518110658

@@ -78,7 +78,7 @@ def generate_clinical_report(jsn: Dict, osp: Dict, scl: Dict, kl_pred: Dict) -> 
         Formatted clinical report string.
     """
     report = f"""
-AUTOMATED KOA ASSESSMENT REPORT (xrAI-OA)
+AUTOMATED KOA ASSESSMENT REPORT (Knee-xRAI)
 ============================================
 KL Grade: {kl_pred.get('grade', '?')} (Confidence: {kl_pred.get('confidence', 0):.1%})
 Grade distribution: {_format_distribution(kl_pred.get('probabilities', [0]*5))}
