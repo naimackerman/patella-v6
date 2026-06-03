@@ -11,7 +11,7 @@
 
 ## Overview
 
-KOA-TriFQ is a modular pipeline for knee osteoarthritis (OA) severity grading using the Kellgren–Lawrence (KL) scale. It combines three complementary radiographic feature groups:
+Knee-xRAI is a modular pipeline for knee osteoarthritis (OA) severity grading using the Kellgren–Lawrence (KL) scale. It combines three complementary radiographic feature groups:
 
 | Feature Group | Description |
 |---|---|
@@ -368,7 +368,16 @@ If you use this codebase or the associated methodology in your research, please 
 
 ## Contributing
 
-Issues and pull requests are welcome. Please open an issue first to discuss significant changes.
+```bash
+
+@article{irfan2026knee,
+  title={Knee-xRAI: An Explainable AI Framework for Automatic Kellgren-Lawrence Grading of Knee Osteoarthritis},
+  author={Irfan, Azmul A and Khatim, Nur Ahmad and Irfan, Alfan Alfian and Zaki, Achmad and Suwarsono, Erike A and Arief, Mansur M},
+  journal={arXiv preprint arXiv:2604.23435},
+  year={2026}
+}
+
+```
 
 ---
 
