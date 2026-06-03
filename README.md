@@ -362,12 +362,6 @@ See `Dockerfile` and `docker-compose.yml` for build details.
 
 ## Citation
 
-If you use this codebase or the associated methodology in your research, please cite the accompanying manuscript (see `Paper_Draft_xrAI-OA_revised.docx` in the repository root).
-
----
-
-## Contributing
-
 ```bash
 
 @article{irfan2026knee,
@@ -380,6 +374,7 @@ If you use this codebase or the associated methodology in your research, please 
 ```
 
 ---
+
 
 ## License
 
