@@ -1,60 +1,118 @@
-# KOA-TriFQ
+# Knee-xRAI
 
-KOA-TriFQ is a staged knee OA research pipeline built around three feature groups:
+> **Knee-xRAI** — An Explainable AI Framework for Automatic Kellgren–Lawrence Grading of Knee Osteoarthritis.
 
-- JSN: contour annotation, segmentation, mJSW, and derived joint-space features
-- Osteophytes: per-site ROI grading
-- Sclerosis: subchondral ROI texture and CNN-based grading
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Research-lightgrey)](LICENSE)
+[![Jupyter](https://img.shields.io/badge/Notebooks-Jupyter-orange?logo=jupyter)](notebooks/)
+[![Docker](https://img.shields.io/badge/Docker-Supported-2496ED?logo=docker&logoColor=white)](Dockerfile)
 
-The current repo is set up for a reproducible `patella-v6` workflow:
+---
 
-- manifests store repo-local image paths such as `KneeXrayData/ClsKLData/...`
-- the main pipeline starts by cleaning duplicate numbered files
-- annotation packages use the dataset in place by default instead of copying image folders
-- copied package images, when explicitly enabled, use specific filenames of the form `split_grade_imageid.png`
+## Overview
+
+KOA-TriFQ is a modular pipeline for knee osteoarthritis (OA) severity grading using the Kellgren–Lawrence (KL) scale. It combines three complementary radiographic feature groups:
+
+| Feature Group | Description |
+|---|---|
+| **JSN** | Contour annotation, segmentation, minimum joint-space width (mJSW), and derived joint-space features |
+| **Osteophytes** | Per-site region-of-interest (ROI) detection and grading |
+| **Sclerosis** | Subchondral ROI texture features and CNN-based grading |
+
+The final KL classifier fuses all three groups via an XGBoost / hybrid ensemble trained on manual and pseudo-labelled data.
+
+The repository is configured for a reproducible **`patella-v6`** workflow:
+
+- Manifests store repo-local image paths (e.g. `KneeXrayData/ClsKLData/...`)
+- The main pipeline begins by cleaning duplicate numbered files
+- Annotation packages reference the dataset in-place by default
+- Copied package images (when explicitly enabled) use collision-safe filenames: `split_grade_imageid.png`
+
+---
+
+## Repository Structure
+
+```
+knee-xrai/
+├── KneeXrayData/          # Dataset (kneeKL224 split by KL grade)
+├── annotations/           # Manifests, reviewed labels, masks
+├── app/                   # Demo / inference app
+├── checkpoints/           # Saved model checkpoints
+├── configs/               # YAML configuration
+├── docs/                  # Extended documentation
+├── features/              # Extracted feature CSVs
+├── notebooks/             # Exploratory & analysis notebooks
+├── paper_figures/         # Figures used in the manuscript
+├── report/                # Auto-generated reproducibility report
+├── results/               # Evaluation outputs
+├── scripts/               # Pipeline entry-point scripts
+├── src/                   # Core source modules
+├── tests/                 # Unit and integration tests
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt
+```
+
+---
+
+## Prerequisites
+
+- Python 3.8+
+- Git LFS (for large data files)
+- (Optional) Docker & Docker Compose
+
+---
 
 ## Setup
 
-Create a virtual environment and install the project requirements:
+### 1 — Clone and create a virtual environment
 
 ```bash
+git clone https://github.com/ois-lab/knee-xrai.git
+cd knee-xrai
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 ```
 
-By default the repo expects the dataset at:
+### 2 — Dataset location
 
-```bash
+By default the pipeline expects the dataset at:
+
+```
 ./KneeXrayData/ClsKLData/kneeKL224
 ```
 
-If your dataset lives elsewhere, keep the repo unchanged and point the run to it:
+If your dataset lives elsewhere, export the override before running any script:
 
 ```bash
 export DATA_ROOT=/absolute/path/to/KneeXrayData
 ```
 
-Useful preflight command:
+### 3 — Preflight check
 
 ```bash
 PYTHONPATH=. ./.venv/bin/python scripts/check_pipeline_readiness.py --project-root .
 ```
 
-## .env For W&B
+---
 
-If you want repo-local logging secrets, create `.env` from the example file:
+## Configuration
+
+### W&B Logging
+
+Copy the example environment file and add your Weights & Biases API key:
 
 ```bash
 cp .env.example .env
 ```
 
-Typical `.env`:
+Minimal `.env`:
 
 ```dotenv
 WANDB_API_KEY=your_wandb_api_key_here
 ```
 
-Optional values:
+Optional overrides:
 
 ```dotenv
 WANDB_RUN_ID=
@@ -62,144 +120,101 @@ WANDB_RESUME=allow
 DATA_ROOT=/absolute/path/to/KneeXrayData
 ```
 
-The shell runners load `.env` automatically, and the Lightning logger also checks the repo `.env` directly for W&B when training scripts are run outside those shell wrappers.
+Shell runners load `.env` automatically. The Lightning logger also reads it directly when training scripts are invoked outside the shell wrappers.
 
-## Main Entry Points
+---
 
-Bootstrap-only baseline:
+## Running the Pipeline
+
+### Bootstrap baseline (quick start)
 
 ```bash
 ./scripts/run_initial_experiment.sh
 ```
 
-Main study pipeline:
+### Full main-study pipeline
 
 ```bash
 ./scripts/run_main_study_pipeline.sh
 ```
 
-Recommended next command for the current repo state, when `feature_review_template.csv` is already reviewed and the JSN export is already available under `annotations/packages/jsn_contours/jsn-new.coco-segmentation/`:
+### Resume from a checkpoint
+
+If `feature_review_template.csv` has already been reviewed and the JSN export is available under `annotations/packages/jsn_contours/jsn-new.coco-segmentation/`, skip the completed stages:
 
 ```bash
 ./scripts/run_main_study_pipeline.sh --skip-stages 3,6,7,8,9,10
 ```
 
-The main-study runner covers 34 stages:
-
-1. clean numbered duplicate files
-2. audit pipeline readiness
-3. build bootstrap pseudo-label suggestions
-4. refresh annotation manifests
-5. prepare annotation workspace packages
-6. prepare ROI YOLO dataset from reviewed boxes
-7. train ROI detector
-8. evaluate ROI detector
-9. compare ROI backends
-10. extract ROIs with trained detector or fallback
-11. import reviewed annotations
-12. train JSN segmenter
-13. extract JSN features and masks
-14. extract osteophyte ROI patches with CLAHE and JSN-guided boxes
-15. train osteophyte grader from manual labels
-16. extract sclerosis features for the manual teacher
-17. train sclerosis classifier from manual labels
-18. generate high-confidence pseudo labels
-19. train expanded osteophyte grader
-20. extract sclerosis features for expanded training
-21. train expanded sclerosis classifier
-22. extract osteophyte features
-23. re-extract final sclerosis features with the trained classifier
-24. aggregate all features
-25. train KL XGBoost classifier
-26. train KL hybrid classifier
-27. evaluate JSN segmenter
-28. evaluate osteophyte grader
-29. evaluate sclerosis classifier
-30. run KL feature baselines
-31. run KL ablation studies
-32. evaluate the end-to-end pipeline
-33. build reproducibility report
-34. audit pipeline readiness after the run
-
-Skip stages when you need to resume or isolate part of the pipeline:
+Skip a single stage:
 
 ```bash
 ./scripts/run_main_study_pipeline.sh --skip-stage 3
-./scripts/run_main_study_pipeline.sh --skip-stages 6,7,8,9,10
 ```
 
-Optional JSN self-training branch:
+---
 
-```bash
-ENABLE_JSN_SELF_TRAINING=1 ./scripts/run_main_study_pipeline.sh --skip-stages 3,6,7,8,9,10
-```
+## Pipeline Stages
 
-By default, stage 13 uses the manual-reviewed JSN checkpoint only. With `ENABLE_JSN_SELF_TRAINING=1`, the runner generates high-confidence pseudo-masks, trains a separate self-trained JSN checkpoint, evaluates manual-only and self-trained checkpoints on reviewed test masks, writes the best checkpoint to `checkpoints/jsn_segmenter_selected.txt`, then re-extracts JSN features with that selected checkpoint.
+The main-study runner executes **34 stages**:
 
-## Portable Paths And Annotation Packages
+| # | Stage |
+|---|---|
+| 1 | Clean numbered duplicate files |
+| 2 | Audit pipeline readiness |
+| 3 | Build bootstrap pseudo-label suggestions |
+| 4 | Refresh annotation manifests |
+| 5 | Prepare annotation workspace packages |
+| 6 | Prepare ROI YOLO dataset from reviewed boxes |
+| 7 | Train ROI detector |
+| 8 | Evaluate ROI detector |
+| 9 | Compare ROI backends |
+| 10 | Extract ROIs with trained detector or fallback |
+| 11 | Import reviewed annotations |
+| 12 | Train JSN segmenter |
+| 13 | Extract JSN features and masks |
+| 14 | Extract osteophyte ROI patches (CLAHE + JSN-guided boxes) |
+| 15 | Train osteophyte grader from manual labels |
+| 16 | Extract sclerosis features (manual teacher) |
+| 17 | Train sclerosis classifier from manual labels |
+| 18 | Generate high-confidence pseudo-labels |
+| 19 | Train expanded osteophyte grader |
+| 20 | Extract sclerosis features for expanded training |
+| 21 | Train expanded sclerosis classifier |
+| 22 | Extract osteophyte features |
+| 23 | Re-extract final sclerosis features |
+| 24 | Aggregate all features |
+| 25 | Train KL XGBoost classifier |
+| 26 | Train KL hybrid classifier |
+| 27 | Evaluate JSN segmenter |
+| 28 | Evaluate osteophyte grader |
+| 29 | Evaluate sclerosis classifier |
+| 30 | Run KL feature baselines |
+| 31 | Run KL ablation studies |
+| 32 | Evaluate end-to-end pipeline |
+| 33 | Build reproducibility report |
+| 34 | Final pipeline readiness audit |
 
-`configs/config.yaml` now resolves `project_root` from the active repo and `data_root` from `DATA_ROOT` or `./KneeXrayData`. The annotation manifests created by:
-
-```bash
-PYTHONPATH=. ./.venv/bin/python scripts/bootstrap_pseudo_labels.py
-PYTHONPATH=. ./.venv/bin/python scripts/refresh_annotation_manifests.py
-```
-
-write portable paths such as:
-
-```text
-KneeXrayData/ClsKLData/kneeKL224/train/0/9001695L.png
-```
-
-That makes the repo reproducible across devices without editing CSVs.
-
-Package preparation:
-
-```bash
-PYTHONPATH=. ./.venv/bin/python scripts/prepare_annotation_workspace.py
-```
-
-Default behavior:
-
-- `annotations/packages/feature_grading/feature_review_template.csv` points `local_image_path` at the local dataset
-- `annotations/packages/jsn_contours/jsn_contour_manifest.csv` points `local_image_path` at the local dataset
-- `annotations/packages/feature_grading/images` is not created
-- `annotations/packages/jsn_contours/images*` are not created
-
-If you explicitly need copied image folders for annotation tooling:
-
-```bash
-ANNOTATION_PACKAGE_COPY_IMAGES=1 PYTHONPATH=. ./.venv/bin/python scripts/prepare_annotation_workspace.py
-```
-
-When copy mode is enabled, copied files are named with explicit metadata:
-
-```text
-train_0_9001695L.png
-val_3_9804376R.png
-```
-
-This avoids collisions from generic filenames.
+---
 
 ## Annotation Workflow
 
-After stage 5, review these files:
+After **Stage 5**, two files require human review:
 
-- `annotations/packages/feature_grading/feature_review_template.csv`
-- `annotations/packages/jsn_contours/jsn_contour_manifest.csv`
+```
+annotations/packages/feature_grading/feature_review_template.csv
+annotations/packages/jsn_contours/jsn_contour_manifest.csv
+```
 
-For feature grading:
+**Feature grading:**
+- Fill the `final_*` columns directly in `feature_review_template.csv`
+- Keep `image_id` and `split` unchanged
 
-- fill the `final_*` columns directly in `feature_review_template.csv`
-- keep `image_id` and `split` unchanged
+**JSN contours:**
+- Annotate from `jsn_contour_manifest.csv`
+- Export reviewed contours as COCO JSON to `annotations/reviewed/jsn_cvat_export.json`
 
-For JSN contours:
-
-- annotate from `jsn_contour_manifest.csv`
-- export reviewed contours as COCO JSON
-- place the reviewed export at `annotations/reviewed/jsn_cvat_export.json`
-
-Import reviewed annotations back into training artifacts:
+Import back into training artifacts:
 
 ```bash
 PYTHONPATH=. ./.venv/bin/python scripts/import_reviewed_annotations.py
@@ -207,76 +222,156 @@ PYTHONPATH=. ./.venv/bin/python scripts/import_reviewed_annotations.py
 
 This generates:
 
-- `annotations/osteophyte_labels_reviewed.csv`
-- `annotations/sclerosis_labels_reviewed.csv`
-- `annotations/jsn_masks/{train,val,test}/*.png`
+```
+annotations/osteophyte_labels_reviewed.csv
+annotations/sclerosis_labels_reviewed.csv
+annotations/jsn_masks/{train,val,test}/*.png
+```
 
-## Main-Study Outputs
+---
 
-The pipeline writes the main artifacts to:
+## Annotation Packages & Portable Paths
 
-- `annotations/`
-- `features/`
-- `checkpoints/`
-- `results/`
-- `report/`
+`configs/config.yaml` resolves `project_root` from the active repo and `data_root` from `DATA_ROOT` or `./KneeXrayData`.
 
-Important directories used by the runner:
+Regenerate manifests:
 
-- osteophyte ROIs: `features/rois_osteophyte_clahe_full`
-- JSN manual checkpoint: `checkpoints/jsn_segmenter`
-- JSN self-trained checkpoint: `checkpoints/jsn_segmenter_selftrain`
-- JSN selected checkpoint pointer: `checkpoints/jsn_segmenter_selected.txt`
-- JSN pseudo-masks: `annotations/jsn_pseudo_masks`
-- sclerosis manual teacher features: `features/sclerosis_manual_teacher`
-- sclerosis expanded teacher features: `features/sclerosis_expanded_teacher`
-- final sclerosis features: `features/sclerosis`
-- JSN manual evaluation: `results/jsn_manual`
-- JSN self-trained evaluation: `results/jsn_selftrain`
-- osteophyte evaluation results: `results/osteophyte_main_manual`
-- reproducibility report: `report/`
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/bootstrap_pseudo_labels.py
+PYTHONPATH=. ./.venv/bin/python scripts/refresh_annotation_manifests.py
+```
 
-## Duplicate Cleanup
+Manifests write portable paths such as:
 
-The repo now includes:
+```
+KneeXrayData/ClsKLData/kneeKL224/train/0/9001695L.png
+```
+
+This ensures reproducibility across machines without editing CSV files.
+
+**Prepare annotation workspace:**
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/prepare_annotation_workspace.py
+```
+
+By default, image folders are *not* copied — manifests point directly at the local dataset. To enable image copying for annotation tooling (files named `split_grade_imageid.png`):
+
+```bash
+ANNOTATION_PACKAGE_COPY_IMAGES=1 PYTHONPATH=. ./.venv/bin/python scripts/prepare_annotation_workspace.py
+```
+
+---
+
+## Key Outputs
+
+| Path | Contents |
+|---|---|
+| `annotations/` | Labels, masks, manifests |
+| `features/` | Aggregated feature CSVs |
+| `checkpoints/` | Trained model weights |
+| `results/` | Per-module evaluation metrics |
+| `report/` | Reproducibility summary |
+
+Notable directories used by the runner:
+
+```
+features/rois_osteophyte_clahe_full        # Osteophyte ROI patches
+checkpoints/jsn_segmenter                  # JSN manual checkpoint
+checkpoints/jsn_segmenter_selftrain        # JSN self-trained checkpoint
+checkpoints/jsn_segmenter_selected.txt     # Pointer to best JSN checkpoint
+annotations/jsn_pseudo_masks               # JSN pseudo-masks
+features/sclerosis_manual_teacher          # Sclerosis teacher features (manual)
+features/sclerosis_expanded_teacher        # Sclerosis teacher features (expanded)
+features/sclerosis                         # Final sclerosis features
+results/jsn_manual                         # JSN manual evaluation
+results/jsn_selftrain                      # JSN self-trained evaluation
+results/osteophyte_main_manual             # Osteophyte evaluation
+report/                                    # Reproducibility report
+```
+
+---
+
+## Optional Features
+
+### JSN Self-Training Branch
+
+By default, Stage 13 uses only the manually reviewed JSN checkpoint. Enable self-training to select the best checkpoint automatically:
+
+```bash
+ENABLE_JSN_SELF_TRAINING=1 ./scripts/run_main_study_pipeline.sh --skip-stages 3,6,7,8,9,10
+```
+
+With this flag the runner:
+1. Generates high-confidence pseudo-masks
+2. Trains a self-trained JSN checkpoint in parallel
+3. Evaluates both checkpoints on reviewed test masks
+4. Writes the winner to `checkpoints/jsn_segmenter_selected.txt`
+5. Re-extracts JSN features using the selected checkpoint
+
+### Optional ROI Detector Branch (Stages 6–10)
+
+Stages 6–10 run only when reviewed ROI annotations are present under `annotations/reviewed/`:
+
+```
+roi_boxes.csv  |  roi_annotations.csv  |  roi_cvat_export.json  |  roi_boxes_coco.json
+```
+
+If any of these files are absent, the pipeline skips to the fallback study path automatically.
+
+---
+
+## Reproducibility
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PYTHON_BIN` | system python | Python interpreter used by shell runner |
+| `DATA_ROOT` | `./KneeXrayData` | Path to external dataset |
+| `ANNOTATION_PACKAGE_COPY_IMAGES` | `0` | Recreate copied annotation image folders |
+| `ENABLE_JSN_SELF_TRAINING` | `0` | Run JSN self-training branch |
+| `OSTEOPHYTE_REPRO_CKPT` | — | Override warm-start osteophyte checkpoint |
+| `SCLEROSIS_TEACHER_CKPT` | — | Override teacher checkpoint for pseudo-label stages |
+
+### Regenerate the reproducibility report only
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/build_repro_report.py --run-root .
+```
+
+### Clean duplicate files
 
 ```bash
 PYTHONPATH=. ./.venv/bin/python scripts/clean_duplicate_suffix_files.py --project-root . --remove
 ```
 
-It removes exact duplicate files named like:
+Only exact safe copies (e.g. `train_sclerosis 2.py`) are removed. Conflicting files are reported and left untouched.
 
-```text
-train_sclerosis 2.py
-bootstrap_pseudo_labels 2.py
-```
+---
 
-Only exact safe copies are removed. Conflicting files are reported and left untouched.
-
-## Optional ROI Detector Branch
-
-Stages 6 to 10 of `run_main_study_pipeline.sh` run only when reviewed ROI annotations are present under `annotations/reviewed/`, for example:
-
-- `roi_boxes.csv`
-- `roi_annotations.csv`
-- `roi_cvat_export.json`
-- `roi_boxes_coco.json`
-
-If these files are absent, the pipeline skips the ROI-detector branch and continues with the fallback study path.
-
-## Reproducibility Notes
-
-Useful environment overrides:
-
-- `PYTHON_BIN`: choose the Python interpreter used by the shell runner
-- `DATA_ROOT`: point to an external `KneeXrayData` directory
-- `ANNOTATION_PACKAGE_COPY_IMAGES=1`: recreate copied annotation image folders
-- `ENABLE_JSN_SELF_TRAINING=1`: run the separate JSN self-training branch and use the better JSN checkpoint downstream
-- `OSTEOPHYTE_REPRO_CKPT`: override the warm-start osteophyte checkpoint
-- `SCLEROSIS_TEACHER_CKPT`: override the teacher checkpoint used for pseudo-label stages
-
-To regenerate the reproducibility summary without rerunning training:
+## Docker
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python scripts/build_repro_report.py --run-root .
+docker compose up
 ```
+
+See `Dockerfile` and `docker-compose.yml` for build details.
+
+---
+
+## Citation
+
+If you use this codebase or the associated methodology in your research, please cite the accompanying manuscript (see `Paper_Draft_xrAI-OA_revised.docx` in the repository root).
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. Please open an issue first to discuss significant changes.
+
+---
+
+## License
+
+This project is for research purposes. See [LICENSE](LICENSE) for details.
